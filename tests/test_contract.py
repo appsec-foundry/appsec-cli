@@ -18,6 +18,7 @@ from appsec_cli.external import invoke
 from appsec_cli.output import finalize, sarif
 from appsec_cli.sdk import Envelope
 from appsec_plugin_appsec_verifier.commands import export
+from appsec_plugin_security_score import commands as security_score
 from appsec_plugin_analyze_threats import commands, hosts
 from appsec_analyzer.engine import initialize
 
@@ -105,6 +106,55 @@ class Contracts(unittest.TestCase):
             os.mkfifo(path)
             with self.assertRaises(ToolError):
                 settings(path)
+
+    def test_score_status(self):
+        gap = {"area": "coverage", "status": "unclear"}
+        nested = {"area": "coverage", "status": "satisfied", "locations": [gap]}
+        for rc, checks, status, diagnostic, exit_code in [
+            (0, [], "ok", None, 1),
+            (
+                2,
+                [{"area": "identity", "status": "unclear"}],
+                "ok",
+                "limited_evidence",
+                1,
+            ),
+            (2, [gap], "partial", "limited_coverage", 3),
+            (2, [nested], "partial", "limited_coverage", 3),
+            (1, [], "partial", "limited_coverage", 3),
+        ]:
+            engine = {
+                "analysis": "security-assessment",
+                "overall": {"rating": "Bad"},
+                "subscores": [{"score": 40}],
+                "checks": checks,
+                "findings": [{"rule": "PY-SQL", "severity": "high", "path": "a.py"}],
+            }
+            with (
+                self.subTest(rc=rc, checks=checks),
+                patch.object(security_score, "engine", return_value="engine"),
+                patch.object(
+                    security_score,
+                    "invoke",
+                    return_value=(rc, json.dumps(engine).encode()),
+                ),
+            ):
+                result = security_score.score.handler(Path("."))
+                _, code = finalize(
+                    result,
+                    "security-score",
+                    security_score.score,
+                    {},
+                    "high",
+                    "info",
+                    None,
+                )
+                self.assertEqual(result.status, status)
+                self.assertEqual(
+                    [d.code for d in result.diagnostics or []],
+                    [diagnostic] if diagnostic else [],
+                )
+                self.assertEqual(code, exit_code)
 
     def test_report_projection(self):
         with tempfile.TemporaryDirectory() as tmp:

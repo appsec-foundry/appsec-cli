@@ -16,6 +16,32 @@ class Change(BaseModel):
     relevance: str
 
 
+def unclear(row):
+    return row["status"] == "unclear" or any(
+        location["status"] == "unclear" for location in row.get("locations", [])
+    )
+
+
+def run_status(rc, model):
+    """Engine exit 2 also reports a rating limited by missing control evidence.
+
+    That run is complete. Only source the engine could not cover makes it partial.
+    """
+    if rc == 0:
+        return "ok", None
+    if rc == 2 and not any(
+        check["area"] == "coverage" and unclear(check) for check in model["checks"]
+    ):
+        return "ok", Diagnostic(
+            level="info",
+            code="limited_evidence",
+            message="Some areas lack evidence for a positive rating.",
+        )
+    return "partial", Diagnostic(
+        level="warning", code="limited_coverage", message="Coverage is incomplete."
+    )
+
+
 @command(
     engine_distribution="appsec-security-score", data=Score | Change, findings=True
 )
@@ -42,7 +68,6 @@ def score(
         argv.append("--staged")
     rc, raw = invoke(argv)
     model = json_object(raw)
-    partial = rc != 0
     if rc not in (0, 1, 2) or model.get("analysis") not in (
         "security-assessment",
         "change-relevance",
@@ -50,6 +75,7 @@ def score(
         raise ToolError(
             "score_failed", "The scoring engine could not complete its assessment."
         )
+    status, diagnostic = run_status(rc, model)
     if model["analysis"] == "change-relevance":
         data = Change(relevance=model["relevance"])
         summary = f"Security relevance: {data.relevance}."
@@ -75,17 +101,9 @@ def score(
             )
         )
     return Result(
-        status="partial" if partial else "ok",
+        status=status,
         summary=summary,
         data=data.model_dump(),
         findings=findings,
-        diagnostics=[
-            Diagnostic(
-                level="warning",
-                code="limited_coverage",
-                message="Coverage is incomplete.",
-            )
-        ]
-        if partial
-        else None,
+        diagnostics=[diagnostic] if diagnostic else None,
     )

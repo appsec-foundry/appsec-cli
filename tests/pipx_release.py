@@ -180,18 +180,19 @@ def main():
         cfg.write_text('[plugins]\ndisabled=["appsec-analyzer","repo-inventory"]\n')
         run(cli, "repo-inventory", fixture, codes=(2,))
 
-        def score_version():
-            return result("security-score", fixture, codes=(0, 1, 3))["run"][
-                "tool_version"
-            ]
+        def score(*options, codes=(0,)):
+            return result("security-score", fixture, *options, codes=codes)
 
-        assert score_version() == "0.3.2"
+        # Only the engine version of the historic release matters here.
+        assert score(codes=(0, 1, 3))["run"]["tool_version"] == "0.3.2"
         for wheel in args.release.glob("*.whl"):
             shutil.copy(wheel, index)
         run("pipx", "upgrade", "appsec-cli")
         assert run(cli, "--version").strip() == "0.1.0"
-        assert score_version() == "0.3.3"
-        change = result("security-score", fixture, "--commit", "HEAD", codes=(0, 1, 3))
+        upgraded = score()
+        assert upgraded["run"]["tool_version"] == "0.3.3", upgraded
+        assert upgraded["status"] == "ok", upgraded
+        change = score("--commit", "HEAD")
         assert "relevance" in change["data"], change
         statuses = {
             t["name"]: t["status"]
