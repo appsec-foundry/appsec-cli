@@ -18,6 +18,8 @@ where = ["src"]
 [tool.appsec-cli]
 examples = [
   { run = "security-score .", what = "Score the current repository" },
+  { run = "security-score https://github.com/OWNER/REPO", what = "Score a GitHub repository" },
+  { run = "security-score https://gitlab.com/GROUP/PROJECT", what = "Score a GitLab repository" },
   { run = "security-score --commit HEAD", what = "How security-relevant was the last commit?" },
   { run = "security-score --staged", what = "Check staged changes before you commit" },
 ]

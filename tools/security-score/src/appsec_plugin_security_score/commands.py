@@ -1,6 +1,9 @@
+import os
 from pathlib import Path
 from typing import Annotated, Optional
+from urllib.parse import urlsplit
 
+import click
 import typer
 from pydantic import BaseModel
 from appsec_cli import Diagnostic, Finding, Result, ToolError, command
@@ -62,11 +65,15 @@ def finding(row):
 )
 def score(
     repo: Annotated[
-        Path,
+        str,
         typer.Argument(
-            help="Local repository directory.", exists=True, file_okay=False
+            help="Local directory or HTTPS URL of a GitHub or GitLab repository."
         ),
-    ] = Path("."),
+    ] = ".",
+    repo_option: Annotated[
+        Optional[str],
+        typer.Option("--repo", metavar="REPO", help="Same as the REPO argument."),
+    ] = None,
     commit: Annotated[
         Optional[str], typer.Option(help="Review a single commit.")
     ] = None,
@@ -74,10 +81,32 @@ def score(
         bool, typer.Option("--staged", help="Review staged changes.")
     ] = False,
 ) -> Result:
-    """Score a repository, a commit or its staged changes."""
+    """Score a repository, a commit or its staged changes.
+
+    A GitHub or GitLab repository is read over HTTPS without a clone. For a
+    private one on github.com or gitlab.com, put a read-only token in the
+    GIT_TOKEN environment variable.
+    """
+    if repo_option is not None:
+        source = click.get_current_context().get_parameter_source("repo")
+        if source is not click.core.ParameterSource.DEFAULT:
+            raise typer.BadParameter("Choose the REPO argument or --repo, not both.")
+        repo = repo_option
+    url = repo.startswith("https://")
+    if "://" in repo and not url:
+        raise typer.BadParameter("Use an HTTPS URL.", param_hint="REPO")
+    if not url and not Path(repo).is_dir():
+        raise typer.BadParameter(
+            f"Directory '{repo}' does not exist.", param_hint="REPO"
+        )
     if commit and staged:
         raise typer.BadParameter("Choose either --commit or --staged.")
-    argv = [engine("security-score"), str(repo.resolve()), "--json"]
+    if url and (commit or staged):
+        raise typer.BadParameter(
+            "--commit and --staged need a local checkout of the repository."
+        )
+    source = repo if url else str(Path(repo).resolve())
+    argv = [engine("security-score"), source, "--json"]
     if commit:
         import re
 
@@ -86,7 +115,17 @@ def score(
         argv += ["--commit", commit]
     if staged:
         argv.append("--staged")
-    rc, raw = invoke(argv)
+    env = None
+    if url and urlsplit(repo).netloc not in ("github.com", "gitlab.com"):
+        # The engine would send GIT_TOKEN to any other host that asks for it.
+        env = {k: v for k, v in os.environ.items() if k != "GIT_TOKEN"}
+    rc, raw = invoke(argv, env=env)
+    if url and not raw.strip():
+        raise ToolError(
+            "repository_unavailable",
+            "Could not read the repository. Check the URL and read access; "
+            "a private repository needs GIT_TOKEN.",
+        )
     model = json_object(raw)
     if rc not in (0, 1, 2) or model.get("analysis") not in (
         "security-assessment",
@@ -111,7 +150,8 @@ def score(
             if points is not None
             else f"Score: {rating}"
         )
-    target = {"kind": "commit" if commit else "repository", "path": str(repo.resolve())}
+    target = {"kind": "commit" if commit else "repository"}
+    target["url" if url else "path"] = source
     if commit:
         target["revision"] = commit
     if staged:

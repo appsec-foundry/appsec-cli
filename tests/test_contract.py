@@ -192,7 +192,7 @@ class Contracts(unittest.TestCase):
                     return_value=(rc, json.dumps(engine).encode()),
                 ),
             ):
-                result = security_score.score.handler(Path("."))
+                result = security_score.score.handler(".")
                 _, code = finalize(
                     result,
                     "security-score",

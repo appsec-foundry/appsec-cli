@@ -82,6 +82,108 @@ class Cli(unittest.TestCase):
         self.assertIn("does not exist", err)
         self.assertIn("Hint: Run 'appsec-cli security-score --help'.", err)
 
+    def test_score_help_shows_remote_repositories(self):
+        code, out, _ = self.call("security-score", "--help")
+        self.assertEqual(code, 0)
+        self.assertIn("HTTPS URL of a GitHub or GitLab repository", out)
+        self.assertIn("--repo REPO", out)
+        self.assertIn("GIT_TOKEN", out)
+        self.assertIn(
+            "  appsec-cli security-score https://github.com/OWNER/REPO\n", out
+        )
+        self.assertIn(
+            "  appsec-cli security-score https://gitlab.com/GROUP/PROJECT\n", out
+        )
+
+    def test_score_reads_a_remote_repository(self):
+        from appsec_plugin_security_score import commands
+
+        url = "https://github.com/OWNER/REPO"
+        report = {
+            "analysis": "security-assessment",
+            "overall": {"rating": "Good"},
+            "subscores": [{"score": 80}],
+            "checks": [],
+            "findings": [],
+        }
+        for args in ((url,), ("--repo", url)):
+            with (
+                self.subTest(args=args),
+                patch.object(commands, "engine", return_value="engine"),
+                patch.object(
+                    commands, "invoke", return_value=(0, json.dumps(report).encode())
+                ) as run,
+            ):
+                code, out, _ = self.call("--format", "json", "security-score", *args)
+                self.assertEqual(code, 0)
+                self.assertEqual(run.call_args.args[0], ["engine", url, "--json"])
+                target = json.loads(out)["target"]
+                self.assertEqual(target, {"kind": "repository", "url": url})
+
+    def test_remote_repository_usage_errors(self):
+        from appsec_plugin_security_score import commands
+
+        url = "https://github.com/OWNER/REPO"
+        for args, message in [
+            ((url, "--repo", url), "Choose the REPO argument or --repo, not both."),
+            (("http://github.com/OWNER/REPO",), "Use an HTTPS URL."),
+            ((url, "--commit", "HEAD"), "need a local checkout"),
+            ((url, "--staged"), "need a local checkout"),
+        ]:
+            with (
+                self.subTest(args=args),
+                patch.object(commands, "invoke") as run,
+            ):
+                code, out, err = self.call("security-score", *args)
+                self.assertEqual((code, out), (2, ""))
+                self.assertIn(message, err)
+                run.assert_not_called()
+
+    def test_git_token_reaches_only_github_and_gitlab(self):
+        from appsec_plugin_security_score import commands
+
+        report = {"analysis": "change-relevance", "relevance": "low", "checks": []}
+        cases = [
+            ("https://github.com/OWNER/REPO", True),
+            ("https://gitlab.com/GROUP/PROJECT", True),
+            ("https://gitlab.example.com/GROUP/PROJECT", False),
+            ("https://github.com.example.com/OWNER/REPO", False),
+            ("https://github.com@example.com/OWNER/REPO", False),
+            ("https://github.com:8443/OWNER/REPO", False),
+        ]
+        for url, forwarded in cases:
+            with (
+                self.subTest(url=url),
+                patch.dict(os.environ, {"GIT_TOKEN": "test-token"}),
+                patch.object(commands, "engine", return_value="engine"),
+                patch.object(
+                    commands, "invoke", return_value=(0, json.dumps(report).encode())
+                ) as run,
+            ):
+                code, _, _ = self.call("--format", "json", "security-score", url)
+                self.assertEqual(code, 0)
+                env = run.call_args.kwargs["env"]
+                if forwarded:
+                    self.assertIsNone(env)  # inherits GIT_TOKEN
+                else:
+                    self.assertNotIn("GIT_TOKEN", env)
+                    self.assertEqual(env["NO_COLOR"], "1")
+
+    def test_unreadable_remote_repository(self):
+        from appsec_plugin_security_score import commands
+
+        with (
+            patch.object(commands, "engine", return_value="engine"),
+            patch.object(commands, "invoke", return_value=(1, b"")),
+        ):
+            code, out, _ = self.call(
+                "--format", "json", "security-score", "https://github.com/OWNER/REPO"
+            )
+        self.assertEqual(code, 3)
+        diagnostic = json.loads(out)["diagnostics"][0]
+        self.assertEqual(diagnostic["code"], "repository_unavailable")
+        self.assertIn("GIT_TOKEN", diagnostic["message"])
+
     def test_disabled_tool(self):
         self.config.write_text('[plugins]\ndisabled = ["appsec-verifier"]\n')
         code, _, err = self.call("appsec-verifier", "export", "x.yaml")

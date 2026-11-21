@@ -58,7 +58,7 @@ The example tools come from appsec-foundry. Each one is a Python adapter in [too
 
 | Command | What it does | Engine | Model calls |
 | --- | --- | --- | --- |
-| `security-score [REPO]` | Scores a repository. With `--commit SHA` or `--staged`, rates how security-relevant a change is. | [security-score](https://github.com/appsec-foundry/appsec-tools/tree/main/security-score) 0.3.3 | No |
+| `security-score [REPO]` | Scores a local repository, or a GitHub or GitLab repository by its HTTPS URL. With `--commit SHA` or `--staged`, rates how security-relevant a change is. | [security-score](https://github.com/appsec-foundry/appsec-tools/tree/main/security-score) 0.3.3 | No |
 | `analyze-threats [REPO]` | Threat review of `HEAD`, a commit (`--commit SHA`), or a GitHub pull request (`--pr URL`). Reports threats with cited evidence, existing controls, and open questions. | [appsec-analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | Yes |
 | `appsec-analyzer repo-profile [REPO]` | Size, languages, and build manifests of a repository. | appsec-analyzer 0.1.0a0 | No |
 | `appsec-analyzer export ASSESSMENT DESTINATION` | Converts a saved Analyzer assessment to SARIF, or to HTML with `--format html` (needs Pandoc). | appsec-analyzer 0.1.0a0 | No |
@@ -66,9 +66,12 @@ The example tools come from appsec-foundry. Each one is a Python adapter in [too
 
 ```sh
 appsec-cli security-score .
+appsec-cli security-score https://github.com/OWNER/REPO
 appsec-cli analyze-threats --pr https://github.com/OWNER/REPO/pull/42
 appsec-cli appsec-analyzer export ~/assessments/app ~/exports/app
 ```
+
+For a private repository on github.com or gitlab.com, `security-score` uses a read-only token from `GIT_TOKEN`. Other hosts don't receive it.
 
 ## For development teams
 
