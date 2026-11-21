@@ -1,12 +1,13 @@
 """Run against an installed suite with python -m unittest discover -s tests."""
 
+import io
 import json
 import os
 import subprocess
 import sys
 import tempfile
 import unittest
-from contextlib import nullcontext
+from contextlib import nullcontext, redirect_stderr
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -368,12 +369,22 @@ class Threats(unittest.TestCase):
             head = git("rev-parse", "HEAD")
             (repo / "app.py").write_text("uncommitted")
             empty = {"architecture": ARCHITECTURE, "threats": [], "open_questions": []}
-            with patch.object(hosts, "complete", return_value=empty) as transport:
+            progress = io.StringIO()
+            with (
+                patch.object(hosts, "complete", return_value=empty) as transport,
+                redirect_stderr(progress),
+            ):
                 result = commands.analyze.handler(repo)
                 self.assertEqual(result.data["revision"], head)
                 self.assertEqual(result.data["profile"], "claude")
                 result = commands.analyze.handler(repo, commit="HEAD")
                 self.assertEqual(result.data["base"], base)
+                # before and after of app.py are one file
+                self.assertEqual(
+                    progress.getvalue().splitlines()[-1],
+                    "Sending 2 files to claude (sonnet) for review. "
+                    "This can take up to 3 minutes.",
+                )
                 docs = transport.call_args.args[2]["documents"]
                 self.assertEqual(
                     {(r["side"], r["path"]) for r in docs},
@@ -400,6 +411,10 @@ class Threats(unittest.TestCase):
                         pr="https://github.com/team/project/pull/1"
                     )
                     self.assertEqual(result.target["kind"], "pull_request")
+                    self.assertIn(
+                        "Fetching https://github.com/team/project/pull/1",
+                        progress.getvalue(),
+                    )
                 entry = {
                     "actor": "reader",
                     "prerequisites": "access",

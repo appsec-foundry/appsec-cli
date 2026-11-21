@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 from contextlib import nullcontext
 from pathlib import Path
 from typing import Annotated, Optional, Literal
@@ -8,6 +9,7 @@ import typer
 from pydantic import BaseModel, ConfigDict, ValidationError
 from appsec_cli import Diagnostic, Finding, Result, ToolError, command
 from appsec_cli.sdk import SEVERITIES, Severity
+from appsec_cli.ui import clean
 from . import hosts, source
 
 
@@ -52,6 +54,11 @@ class Details(Strict):
     omission_reasons: dict[str, int]
     open_questions: list[str]
     threats: list[Threat]
+
+
+def progress(message):
+    """A status line on stderr while the review runs; stdout carries only the result."""
+    print(message, file=sys.stderr, flush=True)
 
 
 def render_review(data):
@@ -141,6 +148,7 @@ def analyze(
             raise typer.BadParameter(
                 "Expected https://github.com/OWNER/REPO/pull/NUMBER."
             )
+        progress(f"Fetching {pr}")
         try:
             review = review_sources.parse(pr, "pr")
             origin = review_sources.resolve(review)
@@ -172,6 +180,11 @@ def analyze(
         }
         if pr:
             scope["url"] = pr
+        files = len({d["path"] for d in docs})
+        progress(
+            f"Sending {files} file{'' if files == 1 else 's'} to {selected} ({clean(model)}) for review. "
+            f"This can take up to {hosts.TIME_LIMIT // 60} minutes."
+        )
         reply = hosts.complete(
             selected,
             model,
