@@ -1,26 +1,29 @@
 # Write a tool
 
-This guide is for the AppSec team that maintains the suite. It shows how to turn a tool into an appsec-cli command, test it, and ship it to development teams.
+This guide is for the AppSec team that maintains the suite. Each tool is one directory in [tools/](../tools), and the directory name becomes the command. The release build finds every directory and pins its version; there is no list to maintain.
 
-[Choose an approach](#choose-an-approach) · [One-file tool](#one-file-tool) · [Python adapter](#python-adapter) · [Plugin interface](#plugin-interface) · [Test and distribute](#test-and-distribute) · [Update an engine](#update-an-engine)
+[Choose an approach](#choose-an-approach) · [One-file tool](#one-file-tool) · [Python adapter](#python-adapter) · [Plugin interface](#plugin-interface) · [Test a tool](#test-a-tool) · [Versions and updates](#versions-and-updates)
 
 ## Choose an approach
 
-| Your tool | Approach | You write |
-| --- | --- | --- |
-| A Python package whose console script prints a JSON object | [One-file tool](#one-file-tool) | `modules/<name>/tool.toml` in this repository |
-| Needs its own finding rules, several subcommands, or engine-specific exit codes | [Python adapter](#python-adapter) | A small Python package created by `appsec-cli tools new` |
-| Not written in Python | [Python adapter](#python-adapter) that starts the executable | An adapter that ships or depends on the executable |
-| Runs as a separate service | [Python adapter](#python-adapter) that calls its API | An API adapter |
+| Your tool | The directory contains |
+| --- | --- |
+| A Python package whose console script prints a JSON object | [`tool.toml`](#one-file-tool) only |
+| Needs its own finding rules, several commands, or engine-specific exit codes | A [Python adapter](#python-adapter), copied from [tools/_template](../tools/_template) |
+| Not written in Python, or runs as a separate service | A Python adapter that starts the program or calls its API |
 
-Both approaches give the command the same help, tool list entry, disable switch, and JSON output as every other command. Neither changes the CLI core.
+Both kinds give the command the same help, tool list entry, disable switch, and JSON output as every other command. Neither changes the CLI core.
+
+- Names use lowercase letters, digits, and hyphens. `tools`, `schema`, and `update` are reserved.
+- A directory holds either `tool.toml` or `pyproject.toml`, not both.
+- Directories whose name starts with `_`, such as `_template`, are not part of a release.
 
 ## One-file tool
 
-Create `modules/<name>/tool.toml` in this repository. The directory name becomes the command:
+Create `tools/<name>/tool.toml`:
 
 ```toml
-# modules/repo-inventory/tool.toml
+# tools/repo-inventory/tool.toml
 engine = "appsec-analyzer==0.1.0a0"
 args = ["repo-profile", "{repo}", "--json"]
 ```
@@ -39,30 +42,25 @@ After the next suite release, teams run `appsec-cli repo-inventory .`. The build
 - Each run is limited to 120 seconds and 8 MiB of output.
 - Names use lowercase letters, digits, and hyphens. `tools` and `schema` are reserved, and a module cannot reuse the name of a bundled plugin.
 
-To update the engine, change the pin in `tool.toml` and release the suite with a new version.
-
 ## Python adapter
 
-Use the generator for anything a one-file tool cannot express. It creates an independent package with an entry point, an example handler, and a test:
+Copy the template and give it the new name in four places. For a tool named `policy-check`:
 
-```sh
-appsec-cli tools new team-inventory --scenario data
-appsec-cli tools new policy-check --scenario findings
-appsec-cli tools new reports --scenario group
-appsec-cli tools new score-wrapper --scenario external \
-  --engine appsec-security-score==0.3.3 --binary security-score
-```
+1. Copy the directory:
 
-| Scenario | Creates |
-| --- | --- |
-| `data` | A command that returns typed data under `data`. |
-| `findings` | A command that returns findings. Supports `--fail-on` and SARIF output. |
-| `group` | A tool with subcommands, starting with `reports summary`. |
-| `external` | A wrapper that starts the console script of a pinned engine package and returns its JSON. |
+   ```sh
+   cp -r tools/_template tools/policy-check
+   ```
 
-`--directory` chooses where the project is created; the default is the current directory.
+2. Rename the module directory `src/appsec_plugin_template` to `src/appsec_plugin_policy_check`.
+3. In `pyproject.toml`, set `name = "appsec-plugin-policy-check"`, a `description`, and the entry point `"policy-check" = "appsec_plugin_policy_check:run"`.
+4. In the code and in `tests/test_plugin.py`, replace `appsec_plugin_template` with `appsec_plugin_policy_check`, and the rule prefix `template/` with `policy-check/`.
 
-For `external`, `--engine` names the pinned package and `--binary` its console script. pip installs the engine into the same environment as the adapter. Adapt the argument list, the accepted exit codes, and the translation of the native output to your tool. The [security-score adapter](../plugins/security-score/src/appsec_plugin_security_score/commands.py) shows this for a tool that also reports partial results.
+The build stops when the package name does not match the directory. `appsec-cli tools list --check` reports an entry point that does not.
+
+The template has one command that returns data and findings. For a tool with several commands, register one entry point per command, such as `"reports.summary"` and `"reports.export"`; teams then run `appsec-cli reports summary`.
+
+To wrap an engine, add it pinned to `dependencies`, for example `"appsec-security-score==0.3.3"`, and start its console script with `appsec_cli.external.ExternalTool` or `appsec_cli.external.invoke`. Adapt the argument list, the accepted exit codes, and the translation of the native output to your tool. The [security-score adapter](../tools/security-score/src/appsec_plugin_security_score/commands.py) shows this for a tool that also reports partial results.
 
 A tool written in another language can ship its executable as a resource in platform-specific wheels. The adapter resolves the resource from its installed package and starts it with `appsec_cli.external.invoke`. That function takes an argument list, uses no shell, and enforces a time and an output limit. For offline runs and reproducible upgrades, put the engine or its client in the adapter's pinned dependencies.
 
@@ -93,42 +91,37 @@ def inspect(component: str) -> Result:
 - Raise `typer.BadParameter` for invalid arguments (exit code 2) and `appsec_cli.ToolError(code, message)` for an expected failure (status `failed`, exit code 3).
 - Plugins return a result and never print to stdout themselves.
 
-## Test and distribute
+## Test a tool
 
-1. Adapt the generated handler and its test. Add team, source repository, and issue tracker to the package metadata. Keep a changelog of changes to commands and data contracts.
-2. Build the wheel in a prepared Python build environment:
+1. Adapt the template test and run it with the Python of an environment where the adapter is installed:
 
    ```sh
-   python -m pip wheel --no-deps --no-build-isolation . -w dist
+   python -m unittest discover -s tools/policy-check/tests
    ```
 
-3. Install it into your appsec-cli installation and enable it:
+2. Build the wheel and add it to your installation:
 
    ```sh
+   python -m pip wheel --no-deps --no-build-isolation tools/policy-check -w dist
    pipx inject appsec-cli dist/<wheel>.whl
    ```
 
-   Then add the tool name under `[plugins].additional` in your [user configuration](../README.md#configuration).
-4. Check `appsec-cli tools list --check`, `appsec-cli --format json tools describe NAME`, one real call, and one error case. Run the generated test with the Python of the environment where the adapter is installed:
-
-   ```sh
-   python -m unittest discover -s tests
-   ```
-
-5. To make it an official tool, publish the adapter wheel and its engine dependencies in your package index. In this repository's [pyproject.toml](../pyproject.toml), add the pinned adapter to `[tool.appsec-suite].dependencies` and its command name to `[tool.appsec-suite.bundle]`, then release the suite with a new version. Every team gets the tool with its next `pipx upgrade appsec-cli`.
-
-A team can also keep a plugin of its own outside the suite. It installs the plugin with `pipx inject` and updates it with `pipx runpip appsec-cli install --upgrade appsec-plugin-NAME`.
+   Until the tool is part of a release, enable it under `[plugins].additional` in your [user configuration](../README.md#configuration).
+3. Check `appsec-cli tools list --check`, `appsec-cli --format json tools describe NAME`, one real call, and one error case.
+4. `make release-check` builds the whole release with the new tool and runs the contract tests.
 
 After you add or rename an entry point, reinstall the package; entry points are read from the installed metadata.
 
-## Update an engine
+A team can also keep a plugin outside the suite: copy the template into its own repository, publish the wheel in its package index, install it with `pipx inject appsec-cli appsec-plugin-NAME`, and enable it under `[plugins].additional`. It updates with `pipx runpip appsec-cli install --upgrade appsec-plugin-NAME`.
 
-The engine can stay in its own repository with its own release cycle:
+## Versions and updates
 
-1. Release the new engine version.
-2. In the adapter, raise the engine pin and the adapter version. Test how the adapter maps the new native output.
-3. Release the suite with the new adapter pin and a new suite version.
+Every tool has one version: the engine pin of a `tool.toml`, or the package version of an adapter. `appsec-cli tools list` and `appsec-cli --version` show it. pip only installs a package again when its version changes, so:
 
-For the engines of the example setup, also update the commit in [scripts/build_release.py](../scripts/build_release.py).
+1. **Engine update:** release the new engine first. Change the pin in `tool.toml`, or raise the pin and the version in the adapter's `pyproject.toml`. Test how the adapter maps the new native output.
+2. **Adapter change:** raise the adapter version whenever anything in its directory changes. The same applies to the core in [core/](../core).
+3. **Release:** raise the suite version in [pyproject.toml](../pyproject.toml), release, and tag the commit as `v<version>`. Teams get the change with `appsec-cli update`, which lists the new versions.
+
+The release build stops when a package changed since the last `v*` tag without a new version. For the engines of the example setup, also update the commit in [scripts/build_release.py](../scripts/build_release.py).
 
 The offline adapter for AppSec Verifier contains no engine. It ships the report schema from Verifier commit `90fb9736af8911e0bb7e0d9b007328cfb86f9706` (Apache 2.0, license in the adapter). When the Verifier schema changes, update this file and check the exported fields against existing reports.

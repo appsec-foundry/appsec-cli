@@ -1,8 +1,9 @@
 from pathlib import Path
-from typing import Literal
+from typing import Annotated, Literal
 
 from importlib.resources import files
 
+import typer
 import yaml
 from jsonschema import Draft202012Validator
 from pydantic import BaseModel, ConfigDict, Field
@@ -55,7 +56,14 @@ class Export(BaseModel):
 
 
 @command(data=Export)
-def export(verification: Path) -> Result:
+def export(
+    verification: Annotated[
+        Path,
+        typer.Argument(
+            help="Completed verification.yaml.", exists=True, dir_okay=False
+        ),
+    ],
+) -> Result:
     """Read a completed verification.yaml and export finding identities and verdicts."""
     try:
         raw = read_regular(verification, 8 * 1024 * 1024)

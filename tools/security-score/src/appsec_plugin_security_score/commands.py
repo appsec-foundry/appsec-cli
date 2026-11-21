@@ -61,13 +61,18 @@ def finding(row):
     engine_distribution="appsec-security-score", data=Score | Change, findings=True
 )
 def score(
-    repo: Annotated[Path, typer.Argument(help="Local repository directory.")] = Path(
-        "."
-    ),
+    repo: Annotated[
+        Path,
+        typer.Argument(
+            help="Local repository directory.", exists=True, file_okay=False
+        ),
+    ] = Path("."),
     commit: Annotated[
         Optional[str], typer.Option(help="Review a single commit.")
     ] = None,
-    staged: Annotated[bool, typer.Option(help="Review staged changes.")] = False,
+    staged: Annotated[
+        bool, typer.Option("--staged", help="Review staged changes.")
+    ] = False,
 ) -> Result:
     """Score a repository, a commit or its staged changes."""
     if commit and staged:

@@ -1,0 +1,16 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "appsec-plugin-template"
+version = "0.1.0"
+requires-python = ">=3.10"
+description = "Check text for unresolved TODO markers."
+dependencies = ["appsec-cli-core==0.1.0"]
+
+[project.entry-points."appsec_cli.tools"]
+"template" = "appsec_plugin_template:run"
+
+[tool.setuptools.packages.find]
+where = ["src"]

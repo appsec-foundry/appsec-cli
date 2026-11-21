@@ -7,9 +7,8 @@ from typing import Annotated
 
 import typer
 from pydantic import JsonValue
-from appsec_suite.manifests import Manifest
-
 from .external import ExternalTool
+from .manifests import Manifest
 from .sdk import Result, ToolError, command
 
 
@@ -42,7 +41,10 @@ def from_manifest(spec):
         return Result(summary=f"{spec.name} completed.", data=payload)
 
     def with_repo(
-        repo: Annotated[Path, typer.Argument(help="Repository directory.")] = Path("."),
+        repo: Annotated[
+            Path,
+            typer.Argument(help="Repository directory.", exists=True, file_okay=False),
+        ] = Path("."),
     ):
         return execute(
             [str(repo.resolve()) if arg == "{repo}" else arg for arg in spec.args]

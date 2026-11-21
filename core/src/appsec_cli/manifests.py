@@ -1,4 +1,8 @@
-"""The same declarative module format is used at build time and at runtime."""
+"""The tool.toml format, read by the suite build and by the CLI at runtime.
+
+Needs only the standard library and packaging, so the build loads it without
+installing the core.
+"""
 
 import re
 from dataclasses import dataclass
@@ -12,6 +16,9 @@ except ImportError:
 from packaging.requirements import Requirement
 from packaging.version import Version
 
+NAME = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
+RESERVED = {"tools", "schema", "update"}
+
 
 @dataclass(frozen=True)
 class Manifest:
@@ -21,21 +28,22 @@ class Manifest:
     binary: str | None
     description: str
 
+    @property
+    def version(self):
+        return next(iter(self.engine.specifier)).version
+
     @classmethod
     def read(cls, path: Path):
         name = path.parent.name
         if path.is_symlink() or path.parent.is_symlink() or not path.is_file():
-            raise ValueError("Expected a regular module manifest")
+            raise ValueError("Expected a regular tool.toml file")
         with path.open("rb") as stream:
             raw = stream.read(65537)
         if len(raw) > 65536:
-            raise ValueError("Module manifest too large")
+            raise ValueError("tool.toml too large")
         doc = tomllib.loads(raw.decode("utf-8"))
-        if not re.fullmatch(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*", name) or name in {
-            "tools",
-            "schema",
-        }:
-            raise ValueError("Invalid module directory name")
+        if not NAME.fullmatch(name) or name in RESERVED:
+            raise ValueError(f"{name}: invalid tool directory name")
         if doc.keys() - {"engine", "args", "binary", "description"} or not isinstance(
             doc.get("engine"), str
         ):

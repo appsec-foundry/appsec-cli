@@ -55,7 +55,7 @@ These steps build the example setup and install it the way a development team wo
 
    ```sh
    pipx install appsec-cli
-   pipx upgrade appsec-cli
+   appsec-cli update
    ```
 
 ## How it works
@@ -64,16 +64,18 @@ A release consists of four kinds of Python packages. pipx installs them together
 
 | Package | Role | Lives in |
 | --- | --- | --- |
-| `appsec-cli` (suite) | Names the tools of a release and pins their exact versions. Teams install this package. | This repository, [pyproject.toml](pyproject.toml) |
+| `appsec-cli` (suite) | Contains one command per directory in [tools/](tools) and pins the exact versions of a release. Teams install this package. | This repository |
 | `appsec-cli-core` | Help, tool discovery, configuration, output formats, and exit codes. | [core/](core) |
-| `appsec-plugin-<tool>` (adapter) | Defines the command of one tool and translates the tool's output into the common result format. | [plugins/](plugins) or its own repository |
+| `appsec-plugin-<tool>` (adapter) | Defines the command of one tool and translates the tool's output into the common result format. | `tools/<tool>/`, or its own repository |
 | Engine | The actual tool, such as `appsec-security-score`. | Its own repository and release cycle |
+
+**One tool is one directory.** `tools/<name>/tool.toml` wraps a tool that prints JSON, without any code. `tools/<name>/pyproject.toml` with its sources is a Python adapter. The release build finds both and pins their versions; there is no list to maintain.
 
 The core lists tools from package metadata without importing them, so `appsec-cli` and `tools list` stay fast and keep working when one tool is broken. A tool is loaded only when it runs or is described. Adapters return a result object; the core prints it as text, JSON, or SARIF and computes the exit code.
 
 ## Example setup
 
-The four tools of the example setup come from appsec-foundry. Each has its own adapter package in [plugins/](plugins).
+The four tools of the example setup come from appsec-foundry. Each is a Python adapter in [tools/](tools).
 
 | Command | What it does | Engine | Model calls |
 | --- | --- | --- | --- |
@@ -96,10 +98,11 @@ appsec-cli appsec-analyzer export ~/assessments/app ~/exports/app --format sarif
 
 ```sh
 pipx install appsec-cli
-pipx upgrade appsec-cli
+appsec-cli update          # asks, runs pipx upgrade, shows what changed
+appsec-cli --version       # suite and tool versions
 ```
 
-Your AppSec team configures the package index. An upgrade brings the tools and engine versions of the new release, including newly added tools. Tools you disabled stay disabled.
+Your AppSec team configures the package index. An update brings the tools and engine versions of the new release, including newly added tools, and lists added, removed, and updated tools. Tools you disabled stay disabled. In scripts, run `appsec-cli update --yes`; `pipx upgrade appsec-cli` does the same without the summary.
 
 ### Find commands
 
@@ -223,29 +226,25 @@ For a pull request in a private repository, provide a read token in `APPSEC_GIT_
 
 ## Add your own tool
 
-There are two ways to add a tool. Neither changes the CLI core.
+Add a directory to [tools/](tools). Its name becomes the command. Neither way changes the CLI core.
 
-**One file for a JSON tool.** If your tool is a Python package with a command that prints a JSON object, add `modules/<name>/tool.toml` to this repository:
+**A tool that prints JSON** needs one file:
 
 ```toml
-# modules/repo-inventory/tool.toml
+# tools/repo-inventory/tool.toml
 engine = "appsec-analyzer==0.1.0a0"
 args = ["repo-profile", "{repo}", "--json"]
 ```
 
-After the next suite release, teams run `appsec-cli repo-inventory .`. The directory name becomes the command, the build adds the engine as a dependency, and the engine's JSON appears unchanged under `data`.
+After the next suite release, teams run `appsec-cli repo-inventory .`. The build adds the engine as a dependency, and the engine's JSON appears unchanged under `data`.
 
-**A Python adapter** for your own finding rules, several subcommands, or a custom output mapping. The generator creates a standalone package with an entry point and a test:
+**A tool with its own Python code**, for example for finding rules, several commands, or a custom output mapping, starts as a copy of [tools/_template](tools/_template):
 
 ```sh
-appsec-cli tools new team-inventory --scenario data
-appsec-cli tools new policy-check --scenario findings
-appsec-cli tools new reports --scenario group
-appsec-cli tools new score-wrapper --scenario external \
-  --engine appsec-security-score==0.3.3 --binary security-score
+cp -r tools/_template tools/policy-check
 ```
 
-[Write a tool](docs/writing-a-tool.md) explains both ways, the plugin interface, tests, and distribution.
+Then rename the package, its module, and its entry point to the new name. [Write a tool](docs/writing-a-tool.md) lists each step, the plugin interface, tests, and versions.
 
 ## Release and distribution
 
@@ -257,26 +256,22 @@ make release-check SCORE_REPO=/path/to/appsec-tools ANALYZER_REPO=/path/to/appse
 
 1. Checks every pinned external wheel against PyPI for its hash, yanked releases, and known advisories ([scripts/audit_lock.py](scripts/audit_lock.py)).
 2. Creates `.venv/` and installs the external dependencies from [requirements-linux-py310.lock](requirements-linux-py310.lock) with hash checking.
-3. Builds the engines from the commits pinned in [scripts/build_release.py](scripts/build_release.py), even when your engine checkouts are on another commit. Then builds the core, the adapters, and the suite. `dist/` then holds eight wheels and `release.lock` with their hashes.
+3. Checks the versions (see below). Builds the engines from the commits pinned in [scripts/build_release.py](scripts/build_release.py), even when your engine checkouts are on another commit. Then builds the core, the adapters, and the suite. `dist/` then holds eight wheels and `release.lock` with their hashes.
 4. Installs the release with hash checking and runs `pip check` and the contract tests.
-5. Runs a real `pipx install` and `pipx upgrade` from a temporary local index ([tests/pipx_release.py](tests/pipx_release.py)).
+5. Runs a real `pipx install` and `appsec-cli update` from a temporary local index ([tests/pipx_release.py](tests/pipx_release.py)).
 
 The build runs the packaging code of the engine checkouts, so use trusted checkouts. To build without the checks in a prepared build environment, run `python3 scripts/build_release.py --score /path/to/appsec-tools --analyzer /path/to/appsec-analyzer`.
 
-**Distribute** the wheels from `dist/` and `.wheelhouse/` through your team package index. `pipx upgrade appsec-cli` then updates all tools together and installs tools added since the last release. A command removed from the release disappears, even when pip leaves its old wheel in the environment.
+**Distribute** the wheels from `dist/` and `.wheelhouse/` through your team package index. `appsec-cli update` then updates all tools together and installs tools added since the last release. A command removed from the release disappears, even when pip leaves its old wheel in the environment.
 
-**Release contents** are defined in [pyproject.toml](pyproject.toml):
+**Versions.** The suite has one version in [pyproject.toml](pyproject.toml); each tool has its own: the engine pin of a `tool.toml`, or the package version of an adapter. pip only installs a package again when its version changes, so:
 
-```toml
-[tool.appsec-suite]
-dependencies = ["appsec-cli-core==0.1.0", "appsec-plugin-security-score==0.1.0", ...]
+- Raise the suite version for every release, and tag the released commit as `v<version>`.
+- Raise the version of an adapter, or of the core, whenever its directory changes.
 
-[tool.appsec-suite.bundle]
-security-score = "appsec_plugin_security_score"
-...
-```
+The release build stops when `v<version>` already points to another commit, or when a package changed since the last `v*` tag without a new version. CI needs the tags for this check, so fetch them with the checkout.
 
-To add an official tool, add the pinned adapter to `dependencies` and its command name to `bundle`, then raise the suite version. To update an engine, release the engine, raise the engine pin and the version of its adapter, then release the suite with the new adapter pin. For the engines of the example setup, also update the commit in [scripts/build_release.py](scripts/build_release.py).
+To add an official tool, add its directory and raise the suite version. To update an engine, release the engine, raise its pin and the adapter version, then raise the suite version. For the engines of the example setup, also update the commit in [scripts/build_release.py](scripts/build_release.py).
 
 ## Configuration
 

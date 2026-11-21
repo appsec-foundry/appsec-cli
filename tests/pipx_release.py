@@ -94,51 +94,75 @@ def main():
             HISTORIC_SCORE,
         )
         build(checkout / "security-score")
+
+        def from_template(name, command=None):
+            """Copy tools/_template and rename it as docs/writing-a-tool.md describes."""
+            module = "appsec_plugin_" + name.replace("-", "_")
+            target = work / name
+            shutil.copytree(
+                ROOT / "tools/_template",
+                target,
+                ignore=shutil.ignore_patterns("*.egg-info", "__pycache__", "build"),
+            )
+            (target / "src/appsec_plugin_template").rename(target / "src" / module)
+            entry = f"{name}.{command}" if command else name
+            for path in (
+                target / "pyproject.toml",
+                target / "src" / module / "__init__.py",
+                target / "tests/test_plugin.py",
+            ):
+                text = path.read_text().replace("appsec_plugin_template", module)
+                text = text.replace('"template" =', f'"{entry}" =')
+                path.write_text(text.replace("template", name))
+            build(target)
+            return target
+
         old = work / "old-plugin"
         shutil.copytree(
-            ROOT / "plugins/security-score/src",
+            ROOT / "tools/security-score/src",
             old / "src",
             ignore=shutil.ignore_patterns("*.egg-info", "__pycache__"),
         )
         (old / "pyproject.toml").write_text(
-            (ROOT / "plugins/security-score/pyproject.toml")
+            (ROOT / "tools/security-score/pyproject.toml")
             .read_text()
             .replace('version = "0.1.0"', 'version = "0.0.9"')
             .replace("score==0.3.3", "score==0.3.2")
         )
         build(old)
 
+        # Release A: an older score adapter, an official team-report tool that
+        # release B drops, no verifier yet, and a tool that is only a tool.toml.
         old_suite = work / "old-suite"
         shutil.copytree(ROOT / "src/appsec_suite", old_suite / "src/appsec_suite")
         shutil.copytree(ROOT / "skills", old_suite / "skills")
         shutil.copy(ROOT / "setup.py", old_suite)
-        shutil.copytree(ROOT / "modules", old_suite / "modules")
-        # A team module consists exclusively of this single TOML file.
-        local_module = old_suite / "modules" / "repo-inventory"
-        local_module.mkdir()
-        (local_module / "tool.toml").write_text(
+        (old_suite / "core/src/appsec_cli").mkdir(parents=True)
+        shutil.copy(ROOT / "core/pyproject.toml", old_suite / "core")
+        shutil.copy(
+            ROOT / "core/src/appsec_cli/manifests.py", old_suite / "core/src/appsec_cli"
+        )
+        tools = old_suite / "tools"
+        tools.mkdir()
+        shutil.copy(ROOT / "tools/__init__.py", tools)
+        adapters = {
+            "analyze-threats": ROOT / "tools/analyze-threats",
+            "appsec-analyzer": ROOT / "tools/appsec-analyzer",
+            "security-score": old,
+            "team-report": from_template("team-report"),
+        }
+        for name, source in adapters.items():
+            (tools / name).mkdir()
+            shutil.copy(source / "pyproject.toml", tools / name)
+        (tools / "repo-inventory").mkdir()
+        (tools / "repo-inventory/tool.toml").write_text(
             'engine = "appsec-analyzer==0.1.0a0"\nargs = ["repo-profile", "{repo}", "--json"]\n'
         )
-        manifest = (
+        (old_suite / "pyproject.toml").write_text(
             (ROOT / "pyproject.toml")
             .read_text()
             .replace('version = "0.1.0"', 'version = "0.0.9"')
-            .replace("security-score==0.1.0", "security-score==0.0.9")
         )
-        manifest = manifest.replace(
-            "appsec-plugin-appsec-verifier==0.1.0", "appsec-plugin-team-report==0.1.0"
-        ).replace(
-            'appsec-verifier = "appsec_plugin_appsec_verifier"',
-            'team-report = "appsec_plugin_team_report"',
-        )
-        (old_suite / "pyproject.toml").write_text(manifest)
-
-        # Generate the team plugin with the release's own scaffold.
-        sys.path.insert(0, str(ROOT / "core/src"))
-        from appsec_cli.scaffold import create
-
-        create("team-report", work, "data")
-        build(work / "team-report")
         build(old_suite)
         run("pipx", "install", "appsec-cli")
         cli = work / "bin/appsec-cli"
@@ -146,7 +170,7 @@ def main():
         def result(*args, codes=(0,)):
             return json.loads(run(cli, "--format", "json", *args, codes=codes))
 
-        assert result("team-report", "sample")["data"] == {"subject": "sample"}
+        assert result("team-report", "sample")["data"] == {"characters": 6}
         cfg = config / "config.toml"
         cfg.write_text('[plugins]\ndisabled=["appsec-analyzer"]\n')
         fixture = work / "repo"
@@ -187,8 +211,13 @@ def main():
         assert score(codes=(0, 1, 3))["run"]["tool_version"] == "0.3.2"
         for wheel in args.release.glob("*.whl"):
             shutil.copy(wheel, index)
-        run("pipx", "upgrade", "appsec-cli")
-        assert run(cli, "--version").strip() == "0.1.0"
+        update = result("update", "--yes")
+        assert update["before"]["version"] == "0.0.9", update
+        assert update["after"]["version"] == "0.1.0", update
+        assert update["after"]["tools"]["security-score"] == "0.1.0", update
+        assert "appsec-verifier" in update["after"]["tools"], update
+        assert "team-report" not in update["after"]["tools"], update
+        assert run(cli, "--version").splitlines()[0] == "appsec-cli 0.1.0"
         upgraded = score()
         assert upgraded["run"]["tool_version"] == "0.3.3", upgraded
         assert upgraded["status"] == "ok", upgraded
@@ -206,36 +235,20 @@ def main():
         run(cli, "appsec-analyzer", "--help", codes=(2,))
         run(cli, "team-report", "sample", codes=(2,))
 
-        result(
-            "tools",
-            "new",
-            "team-wrapper",
-            "--scenario",
-            "external",
-            "--engine",
-            "appsec-security-score==0.3.3",
-            "--binary",
-            "security-score",
-        )
-        build(work / "team-wrapper")
-        run("pipx", "inject", "appsec-cli", "appsec-plugin-team-wrapper")
-        wrapper_python = work / "pipx/venvs/appsec-cli/bin/python"
+        for name, command in [("team-findings", None), ("team-group", "summary")]:
+            from_template(name, command)
+            run("pipx", "inject", "appsec-cli", "appsec-plugin-" + name)
+        venv_python = work / "pipx/venvs/appsec-cli/bin/python"
         run(
-            wrapper_python,
+            venv_python,
             "-m",
             "unittest",
             "discover",
             "-s",
-            work / "team-wrapper/tests",
+            work / "team-findings/tests",
         )
-        for name, mode in [("team-findings", "findings"), ("team-group", "group")]:
-            result("tools", "new", name, "--scenario", mode)
-            build(work / name)
-            run("pipx", "inject", "appsec-cli", "appsec-plugin-" + name)
         cfg.write_text('[plugins]\nadditional=["team-group","team-findings"]\n')
-        assert (
-            result("team-group", "summary", "example")["data"]["subject"] == "example"
-        )
+        assert result("team-group", "summary", "example")["data"]["characters"] == 7
         assert (
             result("--fail-on", "info", "team-findings", "TODO", codes=(1,))["counts"][
                 "info"

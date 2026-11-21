@@ -9,21 +9,12 @@ requires-python = ">=3.10"
 description = "AppSec team command suite."
 dynamic = ["dependencies", "entry-points", "scripts"]
 
-[tool.appsec-suite]
-dependencies = ["appsec-cli-core==0.1.0", "appsec-plugin-security-score==0.1.0", "appsec-plugin-analyze-threats==0.1.0", "appsec-plugin-appsec-analyzer==0.1.0", "appsec-plugin-appsec-verifier==0.1.0"]
-
-[tool.appsec-suite.bundle]
-security-score = "appsec_plugin_security_score"
-analyze-threats = "appsec_plugin_analyze_threats"
-appsec-analyzer = "appsec_plugin_appsec_analyzer"
-appsec-verifier = "appsec_plugin_appsec_verifier"
-
 [tool.setuptools]
-packages = ["appsec_suite", "appsec_suite.modules"]
-package-dir = {appsec_suite = "src/appsec_suite", "appsec_suite.modules" = "modules"}
+packages = ["appsec_suite", "appsec_suite.tools"]
+package-dir = {appsec_suite = "src/appsec_suite", "appsec_suite.tools" = "tools"}
 
 [tool.setuptools.package-data]
-"appsec_suite.modules" = ["*/tool.toml"]
+"appsec_suite.tools" = ["*/tool.toml"]
 
 [tool.setuptools.data-files]
 "share/appsec-cli/skills/appsec-cli" = ["skills/appsec-cli/SKILL.md"]

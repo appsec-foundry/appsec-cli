@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 from appsec_cli.manifest_command import from_manifest
 from appsec_cli.sdk import ToolError
-from appsec_suite.manifests import Manifest
+from appsec_cli.manifests import Manifest
 
 
 class ManifestTests(unittest.TestCase):

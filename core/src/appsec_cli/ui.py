@@ -65,36 +65,91 @@ class Style:
         return f"\033[{';'.join(self._sgr(r) for r in roles)}m{text}\033[0m"
 
 
-def overview(rows, style, version, *, full=False):
+def overview(rows, style, version):
+    """The start page: two lines of introduction, then the enabled tools."""
     lines = [
         style("appsec-cli", "bold") + " " + style(version, "muted"),
         style("Application security tools", "muted"),
         "",
         "Usage: appsec-cli [OPTIONS] TOOL [COMMAND] [ARGS]",
         "",
-        style("Tools", "bold"),
-    ]
-    for row in rows:
-        status = "" if row["status"] == "unchecked" else f" [{row['status']}]"
-        lines.append(
-            f"  {row['name']:<20} {clean(row['help'])}{style(status, 'muted')}"
-        )
-        if full:
-            lines.extend(
-                f"    {path}" for path in row["commands"] if path != row["name"]
-            )
-    lines += [
+        *tool_list(rows, style, versions=False).splitlines(),
         "",
         style("Manage", "bold"),
-        "  tools list [--all]       Installed tools and commands",
-        "  tools describe TOOL      Help, arguments and data schemas",
-        "  tools new NAME           Create a distributable plugin",
+        "  tools list [--all]       Installed tools, versions and commands",
+        "  tools describe TOOL      Arguments, output formats and data schema",
         "  schema                   Shared JSON result schema",
         "",
         style("Examples", "bold"),
-        "  appsec-cli --format json tools list",
-        "  appsec-cli tools new release-check --scenario findings",
+        "  appsec-cli TOOL --help",
+        "  appsec-cli --format json --output report.json TOOL .",
     ]
+    return "\n".join(lines)
+
+
+def tool_list(rows, style, *, versions=True):
+    lines = [style("Tools", "bold")]
+    for row in rows:
+        version = f"{clean(row['version']):<10} " if versions else ""
+        status = "" if row["status"] == "unchecked" else f" [{row['status']}]"
+        lines.append(
+            f"  {row['name']:<20} {version}{clean(row['help'])}{style(status, 'muted')}"
+        )
+        lines.extend(f"    {path}" for path in row["commands"] if path != row["name"])
+    return "\n".join(lines)
+
+
+def columns(rows):
+    """Two aligned columns, such as options and their help."""
+    rows = [(clean(a), clean(b)) for a, b in rows]
+    width = min(max((len(a) for a, _ in rows), default=0), 32)
+    return [f"  {a:<{width}}  {b}".rstrip() for a, b in rows]
+
+
+def section(title, rows):
+    return "\n".join([title, *columns(rows)])
+
+
+def changes(data, style):
+    """What an update changed: the suite, then added, removed and updated tools."""
+    before, after = data["before"], data["after"]
+    if before == after:
+        return f"appsec-cli {clean(after['version'])} is up to date."
+    lines = [f"appsec-cli {clean(before['version'])} → {clean(after['version'])}"]
+    old, new = before["tools"], after["tools"]
+    for name in sorted(old.keys() | new.keys()):
+        if name not in old:
+            lines.append(style("  + ", "ok") + f"{clean(name)} {clean(new[name])}")
+        elif name not in new:
+            lines.append(style("  - ", "muted") + clean(name))
+        elif old[name] != new[name]:
+            lines.append(f"    {clean(name)} {clean(old[name])} → {clean(new[name])}")
+    return "\n".join(lines)
+
+
+def describe(result, style):
+    """Text form of 'tools describe': each command with its arguments."""
+    head = f"{clean(result['name'])} {clean(result['version'])}"
+    lines = [style(head, "bold"), clean(result["help"])]
+    for command in result["definitions"]:
+        rows = []
+        for param in command["parameters"]:
+            flag = param["options"][0]
+            label = (
+                ", ".join(param["options"]) if flag.startswith("-") else flag.upper()
+            )
+            if flag.startswith("-") and param["type"] != "boolean":
+                label += " " + param["type"].upper()
+            default = param.get("default")
+            text = param["help"] or ""
+            if default not in (None, False, ""):
+                text += f" (default: {default})"
+            rows.append((label, text.strip()))
+        lines += ["", style("appsec-cli " + clean(command["command"]), "bold")]
+        if command["help"]:
+            lines.append("  " + clean(command["help"]))
+        lines += columns(rows)
+        lines.append(style("  Formats: " + ", ".join(command["formats"]), "muted"))
     return "\n".join(lines)
 
 

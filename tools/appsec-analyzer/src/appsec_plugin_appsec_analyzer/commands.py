@@ -9,7 +9,10 @@ from pydantic import JsonValue
 
 @command(engine_distribution="appsec-analyzer", data=dict[str, JsonValue])
 def profile(
-    repo: Annotated[Path, typer.Argument(help="Repository to inventory.")] = Path("."),
+    repo: Annotated[
+        Path,
+        typer.Argument(help="Repository to inventory.", exists=True, file_okay=False),
+    ] = Path("."),
 ) -> Result:
     """Inventory repository size, languages and manifests without a model call."""
     code, out = invoke(
@@ -24,8 +27,15 @@ def profile(
 
 @command(engine_distribution="appsec-analyzer", data=dict[str, JsonValue])
 def export(
-    assessment: Path,
-    destination: Path,
+    assessment: Annotated[
+        Path,
+        typer.Argument(
+            help="Saved assessment directory.", exists=True, file_okay=False
+        ),
+    ],
+    destination: Annotated[
+        Path, typer.Argument(help="Directory for the exported files.")
+    ],
     format: Annotated[
         str, typer.Option(help="Export format: sarif or html.")
     ] = "sarif",

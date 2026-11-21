@@ -3,7 +3,7 @@
 from dataclasses import dataclass, field
 from importlib import metadata, resources
 from pathlib import Path
-from .config import NAME
+from .manifests import NAME, RESERVED, Manifest
 from .sdk import Command, ToolError
 
 
@@ -51,7 +51,7 @@ def discover(cfg):
     } | cfg.additional
     tools = {}
     for name in sorted(names):
-        if name in {"tools", "schema"} or not NAME.fullmatch(name):
+        if name in RESERVED or not NAME.fullmatch(name):
             raise ToolError(
                 "plugin_conflict",
                 "A plugin name conflicts with the CLI command catalog.",
@@ -93,31 +93,23 @@ def discover(cfg):
         if manifest_entry.group != "appsec_cli.manifests":
             continue
         name = manifest_entry.name
-        if not NAME.fullmatch(name) or name in {"tools", "schema"}:
+        if not NAME.fullmatch(name) or name in RESERVED:
             raise ToolError(
-                "plugin_conflict", "Invalid module name in the suite catalog."
+                "plugin_conflict", "Invalid tool name in the suite catalog."
             )
         if name in tools and tools[name].status not in {"missing", "disabled"}:
             raise ToolError("plugin_conflict", f"Duplicate command name: {name}.")
         status = "disabled" if name in cfg.disabled else "unchecked"
-        summary = f"Run {name}."
-        entry = None
+        summary, version, entry = f"Run {name}.", "", None
         if status != "disabled":
-            from appsec_suite.manifests import Manifest
             from .manifest_command import ManifestEntry
 
             try:
-                path = (
-                    Path(str(resources.files("appsec_suite.modules")))
-                    / name
-                    / "tool.toml"
-                )
-                manifest = Manifest.read(path)
-                summary = manifest.description
+                folder = Path(str(resources.files(manifest_entry.value)))
+                manifest = Manifest.read(folder / name / "tool.toml")
+                summary, version = manifest.description, manifest.version
                 entry = ManifestEntry(manifest)
-            except (OSError, ValueError):
+            except (OSError, ValueError, ModuleNotFoundError):
                 status = "invalid"
-        tools[name] = Tool(
-            name, "appsec-cli", bundle.version, summary, status, {"": entry}
-        )
+        tools[name] = Tool(name, "appsec-cli", version, summary, status, {"": entry})
     return dict(sorted(tools.items()))

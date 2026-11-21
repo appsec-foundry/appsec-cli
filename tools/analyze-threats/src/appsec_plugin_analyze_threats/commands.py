@@ -92,7 +92,10 @@ def render_review(data):
 )
 def analyze(
     repo: Annotated[
-        Path, typer.Argument(help="Local Git repository (committed HEAD).")
+        Path,
+        typer.Argument(
+            help="Local Git repository (committed HEAD).", exists=True, file_okay=False
+        ),
     ] = Path("."),
     commit: Annotated[
         Optional[str],

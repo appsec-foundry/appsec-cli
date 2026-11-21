@@ -1,6 +1,6 @@
 import unittest
 
-from appsec_cli.ui import Style, overview, table
+from appsec_cli.ui import Style, changes, overview, table
 
 PLAIN = Style(False)
 REPORT = {
@@ -109,6 +109,16 @@ class ResultView(unittest.TestCase):
         coloured = table(REPORT, Style(True), threshold="high", code=1)
         self.assertIn("\x1b[91mHIGH", coloured)
         self.assertNotIn("\x1b]", coloured)
+
+    def test_update_changes(self):
+        before = {"version": "0.1.0", "tools": {"a": "1.0", "b": "1.0", "c": "2.0"}}
+        after = {"version": "0.2.0", "tools": {"a": "1.1", "b": "1.0", "d": "0.1"}}
+        text = changes({"before": before, "after": after}, PLAIN)
+        self.assertEqual(
+            text, "appsec-cli 0.1.0 → 0.2.0\n    a 1.0 → 1.1\n  - c\n  + d 0.1"
+        )
+        same = changes({"before": before, "after": before}, PLAIN)
+        self.assertEqual(same, "appsec-cli 0.1.0 is up to date.")
 
     def test_overview_is_short(self):
         rows = [

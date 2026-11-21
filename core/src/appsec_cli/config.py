@@ -1,7 +1,6 @@
 """Installation-owned plugin selection and project-scoped reporting defaults."""
 
 import os
-import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -11,9 +10,8 @@ except ImportError:  # Python 3.10
     import tomli as tomllib
 
 from .files import read_regular
+from .manifests import NAME
 from .sdk import SEVERITIES, ToolError
-
-NAME = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 
 
 @dataclass
