@@ -14,3 +14,8 @@ dependencies = ["appsec-cli-core==0.1.0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.appsec-cli]
+examples = [
+  { run = "template 'TODO: check the input'", what = "Check a text for unresolved TODO markers" },
+]

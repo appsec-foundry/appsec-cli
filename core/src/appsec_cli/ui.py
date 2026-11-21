@@ -1,8 +1,9 @@
 """Terminal output: a short frame around each tool's own view.
 
-appsec-cli has no brand colour of its own. Colour marks status and severity only,
-with the values of AppSec Analyzer's palette, so a severity reads the same in
-every tool. Off a terminal or with NO_COLOR, all text stays plain.
+Around a tool's run, colour marks status and severity only, with the values of
+AppSec Analyzer's palette, so a severity reads the same in every tool. Only the
+start page, where no tool shows its own logo, carries the appsec-foundry logo in
+slate. Off a terminal or with NO_COLOR, all text stays plain.
 """
 
 import os
@@ -21,6 +22,10 @@ PALETTE = {
     "low": ((124, 196, 228), "36"),
     "info": ((109, 118, 134), "90"),
     "muted": ((109, 118, 134), "90"),
+    "iris_rim": ((38, 46, 60), "90"),
+    "iris": ((112, 128, 152), "37"),
+    "iris_core": ((206, 214, 228), "97"),
+    "iris_bracket": ((150, 160, 182), "37"),
 }
 NOTES = {"error": ("✗", "critical"), "warning": ("⚠", "warn"), "info": ("·", "muted")}
 DATA_LINES = 40
@@ -64,38 +69,109 @@ class Style:
             return text
         return f"\033[{';'.join(self._sgr(r) for r in roles)}m{text}\033[0m"
 
+    def gradient(self, text, start, end):
+        """Text blended from one role's colour to another's, per character."""
+        if not self.truecolor or not text:
+            return self(text, start)
+        (r0, g0, b0), _ = PALETTE[start]
+        (r1, g1, b1), _ = PALETTE[end]
+        n = max(len(text) - 1, 1)
+        parts = []
+        for i, char in enumerate(text):
+            rgb = (
+                round(a + (b - a) * i / n) for a, b in ((r0, r1), (g0, g1), (b0, b1))
+            )
+            parts.append("\033[38;2;{};{};{}m{}".format(*rgb, char))
+        return "".join(parts) + "\033[0m"
 
-def overview(rows, style, version):
-    """The start page: two lines of introduction, then the enabled tools."""
-    lines = [
-        style("appsec-cli", "bold") + " " + style(version, "muted"),
-        style("Application security tools", "muted"),
+
+def logo(style, tagline, detail):
+    """The three-line logo of the appsec-foundry tools, in slate, beside the name."""
+
+    def rim(text):
+        return style(text, "iris_rim")
+
+    def bracket(text):
+        return style(text, "iris_bracket")
+
+    iris = style("█", "iris")
+    top = rim("▄") + iris + rim("▄")
+    middle = rim("█") + iris + style("█", "iris_core") + iris + rim("█")
+    bottom = rim("▀") + iris + rim("▀")
+    name = style(style.gradient("appsec-cli", "iris", "iris_core"), "bold")
+    return [
+        f"   {bracket('╭')}  {top}  {bracket('╮')}  {name}",
+        f"   {bracket('│')} {middle} {bracket('│')}  {style(clean(tagline), 'muted')}",
+        f"   {bracket('╰')}  {bottom}  {bracket('╯')}  {style(clean(detail), 'muted')}",
+    ]
+
+
+def overview(rows, style, version, tagline=""):
+    """The start page: what the suite is, each command with an example, next steps."""
+    count = f"{len(rows)} tool{'' if len(rows) == 1 else 's'}"
+    reach = f"{count} · terminal, CI and coding agents"
+    if style.enabled:
+        lines = logo(style, tagline, f"{version} · {reach}")
+    else:
+        lines = [f"appsec-cli {version}", *([clean(tagline)] if tagline else []), reach]
+    lines += ["", "Usage: appsec-cli [OPTIONS] TOOL [COMMAND] [ARGS]", ""]
+    lines += [style("Tools", "bold"), *commands(rows, style)]
+    lines += [
         "",
-        "Usage: appsec-cli [OPTIONS] TOOL [COMMAND] [ARGS]",
-        "",
-        *tool_list(rows, style, versions=False).splitlines(),
-        "",
-        style("Manage", "bold"),
-        "  tools list [--all]       Installed tools, versions and commands",
-        "  tools describe TOOL      Arguments, output formats and data schema",
-        "  schema                   Shared JSON result schema",
-        "",
-        style("Examples", "bold"),
-        "  appsec-cli TOOL --help",
-        "  appsec-cli --format json --output report.json TOOL .",
+        style("Next steps", "bold"),
+        *columns(
+            [
+                ("appsec-cli TOOL --help", "Arguments, options and examples of a tool"),
+                ("appsec-cli tools list", "Installed tools, versions and status"),
+                ("appsec-cli --format json TOOL", "Result as JSON for scripts and CI"),
+                ("appsec-cli update", "Install the latest release"),
+            ]
+        ),
     ]
     return "\n".join(lines)
 
 
-def tool_list(rows, style, *, versions=True):
+def commands(rows, style):
+    """Each command with its summary and its first example."""
+    entries = []
+    for row in rows:
+        status = "" if row["status"] == "unchecked" else f" [{clean(row['status'])}]"
+        usage = row.get("usage") or [
+            {"command": row["name"], "summary": row["help"], "examples": []}
+        ]
+        for number, item in enumerate(usage):
+            entries.append((item, style(status, "muted") if number == 0 else ""))
+    width = min(max((len(item["command"]) for item, _ in entries), default=0), 32)
+    lines = []
+    for item, status in entries:
+        text = f"  {clean(item['command']):<{width}}  {clean(item['summary'])}"
+        lines.append(text.rstrip() + status)
+        if item["examples"]:
+            lines.append("    " + style(clean(item["examples"][0]["run"]), "muted"))
+    return lines
+
+
+def example_lines(examples):
+    """The examples of a help page: what each call does, then the call to copy."""
+    lines = ["Examples:"]
+    for item in examples:
+        lines += [f"  # {clean(item['what'])}", f"  {clean(item['run'])}", ""]
+    return lines[:-1]
+
+
+def tool_list(rows, style):
     lines = [style("Tools", "bold")]
     for row in rows:
-        version = f"{clean(row['version']):<10} " if versions else ""
         status = "" if row["status"] == "unchecked" else f" [{row['status']}]"
         lines.append(
-            f"  {row['name']:<20} {version}{clean(row['help'])}{style(status, 'muted')}"
+            f"  {row['name']:<20} {clean(row['version']):<10} "
+            f"{clean(row['help'])}{style(status, 'muted')}"
         )
-        lines.extend(f"    {path}" for path in row["commands"] if path != row["name"])
+        for item in row.get("usage", []):
+            command = item["command"].removeprefix(row["name"]).strip()
+            summary = "" if item["summary"] == row["help"] else item["summary"]
+            if command:
+                lines.append(f"    {clean(command):<29} {clean(summary)}".rstrip())
     return "\n".join(lines)
 
 

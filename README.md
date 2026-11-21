@@ -40,7 +40,7 @@ These steps build the example setup from source and install it with pipx. You ne
 3. **Try it:**
 
    ```sh
-   appsec-cli                              # tools and usage
+   appsec-cli                              # tools with an example call each
    appsec-cli tools list --check           # load every tool once
    appsec-cli security-score /path/to/app  # score a repository
    ```
@@ -65,7 +65,7 @@ A release consists of four kinds of Python packages. pipx installs them together
 
 **One tool is one directory.** `tools/<name>/tool.toml` wraps a tool that prints JSON, without any code. `tools/<name>/pyproject.toml` with its sources is a Python adapter. The release build finds both and pins their versions; there is no list to maintain.
 
-The core lists tools from package metadata without importing them, so `appsec-cli` and `tools list` stay fast and keep working when one tool is broken. A tool is loaded only when it runs or is described. Adapters return a result object; the core prints it as text, JSON, or SARIF and computes the exit code.
+The core lists tools from package metadata, and their descriptions and examples from a file the release build adds to the suite, without importing them, so `appsec-cli` and `tools list` stay fast and keep working when one tool is broken. A tool is loaded only when it runs or is described. Adapters return a result object; the core prints it as text, JSON, or SARIF and computes the exit code.
 
 ## Example setup
 
@@ -101,11 +101,11 @@ Your AppSec team configures the package index. An update brings the tools and en
 ### Find commands
 
 ```sh
-appsec-cli                           # tools and usage
+appsec-cli                           # tools with an example call each
 appsec-cli tools list                # tools and their subcommands
 appsec-cli tools list --all          # also disabled tools
 appsec-cli tools describe NAME       # arguments, output formats, data schema
-appsec-cli security-score --help     # help for one command
+appsec-cli security-score --help     # options and examples of one command
 ```
 
 ### Global options

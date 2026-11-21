@@ -2,7 +2,7 @@
 
 This guide is for the AppSec team that maintains the suite. Each tool is one directory in [tools/](../tools), and the directory name becomes the command. The release build finds every directory and pins its version; there is no list to maintain.
 
-[Choose an approach](#choose-an-approach) · [One-file tool](#one-file-tool) · [Python adapter](#python-adapter) · [Plugin interface](#plugin-interface) · [Test a tool](#test-a-tool) · [Versions and updates](#versions-and-updates)
+[Choose an approach](#choose-an-approach) · [One-file tool](#one-file-tool) · [Python adapter](#python-adapter) · [Descriptions and examples](#descriptions-and-examples) · [Plugin interface](#plugin-interface) · [Test a tool](#test-a-tool) · [Versions and updates](#versions-and-updates)
 
 ## Choose an approach
 
@@ -36,6 +36,7 @@ After the next suite release, teams run `appsec-cli repo-inventory .`. The build
 | `args` | No | Arguments for the engine. Default: `["{repo}", "--json"]`. An element that is exactly `{repo}` becomes the absolute repository path. Without it, the command takes no repository argument. |
 | `binary` | No | The console script to start if the package has several. Default: its only console script, or the one named like the package. |
 | `description` | No | One line for the tool list and the help. |
+| `examples` | No | Example calls for the start page and the help. See [Descriptions and examples](#descriptions-and-examples). |
 
 - The engine must exit with 0 and print one JSON object on stdout. appsec-cli shows it unchanged under `data`.
 - Any other exit code ends the run with `tool_failed` and exit code 3.
@@ -63,6 +64,38 @@ The template has one command that returns data and findings. For a tool with sev
 To wrap an engine, add it pinned to `dependencies`, for example `"appsec-security-score==0.3.3"`, and start its console script with `appsec_cli.external.ExternalTool` or `appsec_cli.external.invoke`. Adapt the argument list, the accepted exit codes, and the translation of the native output to your tool. The [security-score adapter](../tools/security-score/src/appsec_plugin_security_score/commands.py) shows this for a tool that also reports partial results.
 
 A tool written in another language can ship its executable as a resource in platform-specific wheels. The adapter resolves the resource from its installed package and starts it with `appsec_cli.external.invoke`. That function takes an argument list, uses no shell, and enforces a time and an output limit. For offline runs and reproducible upgrades, put the engine or its client in the adapter's pinned dependencies.
+
+## Descriptions and examples
+
+The start page lists every command with a one-line description and its first example call. `appsec-cli TOOL --help` shows all examples of the tool. Both come from the tool's directory, so the CLI shows them without loading a tool.
+
+In an adapter's `pyproject.toml`, a tool with one command lists its examples under `[tool.appsec-cli]`. Its description is the package `description`:
+
+```toml
+[tool.appsec-cli]
+examples = [
+  { run = "security-score .", what = "Score the current repository" },
+  { run = "security-score --staged", what = "Check staged changes before you commit" },
+]
+```
+
+A tool with several commands gives each command a `summary` and its `examples`:
+
+```toml
+[tool.appsec-cli.commands.export]
+summary = "Export a saved assessment as SARIF or HTML."
+examples = [
+  { run = "appsec-analyzer export ./assessment ./out", what = "Export a saved assessment as SARIF" },
+]
+```
+
+A `tool.toml` takes the same `examples` array.
+
+- `run` is the call without `appsec-cli`. It starts with the tool name and, for a tool with several commands, with the command.
+- `what` says in one line what the call does. The help prints it as a `#` comment above the call.
+- Each command has at most 5 examples. `run`, `what`, and `summary` are one line of up to 100 characters.
+- The release build stops on an invalid entry or a command the tool does not have.
+- A tool without entries appears with its name and description only. This also applies to plugins installed outside the suite with `pipx inject`.
 
 ## Plugin interface
 

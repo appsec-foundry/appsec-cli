@@ -8,7 +8,7 @@ import subprocess
 import sys
 import time
 from datetime import datetime, timezone
-from importlib.metadata import version
+from importlib.metadata import metadata, version
 from pathlib import Path
 
 import click
@@ -70,12 +70,26 @@ def publish(ctx, data, text):
     return 0
 
 
-def as_command(spec):
+def tagline():
+    """The suite's one-line description, which the AppSec team sets in its pyproject.toml."""
+    return metadata("appsec-cli").get("Summary", "")
+
+
+def write_examples(formatter, examples):
+    """The Examples section at the end of a tool's help."""
+    if examples:
+        formatter.write_paragraph()
+        formatter.write("\n".join(ui.example_lines(examples)) + "\n")
+
+
+def as_command(spec, examples=()):
     app = typer.Typer(
         add_completion=False, rich_markup_mode=None, pretty_exceptions_enable=False
     )
     app.command()(spec.handler)
-    return get_command(app)
+    command = get_command(app)
+    command.format_epilog = lambda ctx, formatter: write_examples(formatter, examples)
+    return command
 
 
 def loaded(ctx, tool, subcommand):
@@ -88,7 +102,7 @@ def loaded(ctx, tool, subcommand):
     ctx.meta["appsec.run"] = (tool, spec, time.monotonic(), datetime.now(timezone.utc))
     if options(ctx)["verbose"]:
         print(f"Running {tool.name}", file=sys.stderr)
-    return as_command(spec)
+    return as_command(spec, tool.examples(subcommand))
 
 
 class ToolGroup(click.Group):
@@ -100,6 +114,30 @@ class ToolGroup(click.Group):
 
     def list_commands(self, ctx):
         return sorted(self.tool.commands)
+
+    def format_commands(self, ctx, formatter):
+        """The commands with the summaries of the tool list, without loading them."""
+        usage = self.tool.description()["usage"]
+        if all(item["summary"] for item in usage):
+            with formatter.section("Commands"):
+                formatter.write_dl(
+                    [
+                        (item["command"].split()[-1], ui.clean(item["summary"]))
+                        for item in usage
+                    ]
+                )
+        else:
+            super().format_commands(ctx, formatter)
+
+    def format_epilog(self, ctx, formatter):
+        write_examples(
+            formatter,
+            [
+                item
+                for name in self.list_commands(ctx)
+                for item in self.tool.examples(name)
+            ],
+        )
 
     def get_command(self, ctx, name):
         return loaded(ctx, self.tool, name) if name in self.tool.commands else None
@@ -148,7 +186,9 @@ class Suite(click.Group):
     def format_help(self, ctx, formatter):
         rows = [p.get_help_record(ctx) for p in self.get_params(ctx)]
         formatter.write(
-            ui.overview(enabled_rows(ctx), ui.Style.detect(), version("appsec-cli"))
+            ui.overview(
+                enabled_rows(ctx), ui.Style.detect(), version("appsec-cli"), tagline()
+            )
             + "\n\n"
             + ui.section("Global options (before the tool name)", filter(None, rows))
             + "\n"
@@ -232,7 +272,7 @@ def cli(ctx, **params):
         return publish(
             ctx,
             {"schema_version": 1, "version": version("appsec-cli"), "tools": rows},
-            lambda: ui.overview(rows, style_for(ctx), version("appsec-cli")),
+            lambda: ui.overview(rows, style_for(ctx), version("appsec-cli"), tagline()),
         )
 
 

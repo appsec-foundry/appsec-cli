@@ -6,7 +6,7 @@ Der pipx-Upgrade-Test hat die echte Score-Engine von 0.3.2 auf 0.3.3 aktualisier
 
 Jedes Tool ist ein Verzeichnis unter `tools/`. Für ein Tool mit JSON-Ausgabe reicht eine Datei `tools/<name>/tool.toml`. Ein Verzeichnis mit `pyproject.toml` ist ein Python-Adapter für eigene Ausgabeformate und Finding-Regeln; neue Adapter entstehen als Kopie von `tools/_template`. Der Build findet beide Arten, übernimmt Engine-Pin bzw. Adapterversion und registriert den Verzeichnisnamen als Befehl.
 
-Die Release-Auswahl ergibt sich aus den Verzeichnissen unter `tools/` und steht in den Paketmetadaten der Suite. Der Kern liest Befehlsnamen ohne Plugin-Import und lädt den Handler erst für Aufruf oder Detailansicht. Im Terminal zeigt appsec-cli nur eine Kopf- und eine Ergebniszeile; den Inhalt dazwischen liefert das jeweilige Tool. Farbe gibt es nur für Status und Severity, mit den Werten der Palette des AppSec Analyzer. Die Adapter nutzen die paketierten Engines oder beim Verifier das Berichtsformat. Beim Threat-Review steuert der Adapter Quellauswahl und Analysevertrag und nutzt die Host-Transporte des Analyzers sowie HTTP für die API-Profile.
+Die Release-Auswahl ergibt sich aus den Verzeichnissen unter `tools/` und steht in den Paketmetadaten der Suite. Der Kern liest Befehlsnamen ohne Plugin-Import und lädt den Handler erst für Aufruf oder Detailansicht. Im Terminal zeigt appsec-cli nur eine Kopf- und eine Ergebniszeile; den Inhalt dazwischen liefert das jeweilige Tool. Farbe gibt es dort nur für Status und Severity, mit den Werten der Palette des AppSec Analyzer. Nur die Startseite, auf der kein Tool sein eigenes Logo zeigt, trägt das Logo der appsec-foundry-Tools in Schiefergrau. Die Adapter nutzen die paketierten Engines oder beim Verifier das Berichtsformat. Beim Threat-Review steuert der Adapter Quellauswahl und Analysevertrag und nutzt die Host-Transporte des Analyzers sowie HTTP für die API-Profile.
 
 ## Ziel
 
@@ -61,27 +61,31 @@ Eine leere Liste aktiviert wieder alle offiziellen Plugins. Entfernt ein Team ei
 
 ### Befehle entdecken
 
-`appsec-cli` ohne Argumente zeigt nach zwei Zeilen Einleitung die aktivierten Tools mit Kurzbeschreibung und Unterbefehlen sowie die Kernbefehle. `appsec-cli --help` ergänzt die globalen Optionen. `appsec-cli tools list` zeigt zusätzlich die Version jedes Tools. Ein Tool mit genau einem Befehl erscheint einmal. Die Übersicht ist alphabetisch sortiert und funktioniert ohne Anmeldung oder Modellaufruf.
+`appsec-cli` ohne Argumente zeigt das Logo, eine Zeile Einleitung aus der Beschreibung des Suite-Pakets und jeden Befehl mit Kurzbeschreibung und erstem Beispielaufruf, am Ende die nächsten Schritte. Ohne Farbe steht dort schlichter Text statt des Logos. `appsec-cli --help` ergänzt die globalen Optionen, `appsec-cli TOOL --help` zeigt alle Beispiele eines Tools. `appsec-cli tools list` zeigt Version und Status jedes Tools. Beschreibungen und Beispiele stehen im Verzeichnis des Tools; der Release-Build sammelt sie, sodass die CLI dafür kein Tool laden muss. Ein Tool mit genau einem Befehl erscheint einmal. Die Übersicht ist alphabetisch sortiert und funktioniert ohne Anmeldung oder Modellaufruf.
 
 ```text
 appsec-cli 0.1.0
-Application security tools
+Security tools from your AppSec team
+4 tools · terminal, CI and coding agents
 
 Usage: appsec-cli [OPTIONS] TOOL [COMMAND] [ARGS]
 
 Tools
-  analyze-threats      Review threats in a pull request, commit or repository.
-  appsec-analyzer      Inspect source repositories and export assessments.
-    appsec-analyzer export
-    appsec-analyzer repo-profile
-  appsec-verifier      Export results from completed verification reports.
-    appsec-verifier export
-  security-score       Score a repository or assess a change.
+  analyze-threats               Threat review of a repository, commit or PR.
+    appsec-cli analyze-threats --commit HEAD
+  appsec-analyzer export        Export a saved assessment as SARIF or HTML.
+    appsec-cli appsec-analyzer export ./assessment ./out
+  appsec-analyzer repo-profile  Repository size, languages and build manifests.
+    appsec-cli appsec-analyzer repo-profile .
+  appsec-verifier export        Export results from completed verification reports.
+  security-score                Score a repository or assess a change.
+    appsec-cli security-score .
 
-Manage
-  tools list [--all]       Installed tools, versions and commands
-  tools describe TOOL      Arguments, output formats and data schema
-  schema                   Shared JSON result schema
+Next steps
+  appsec-cli TOOL --help         Arguments, options and examples of a tool
+  appsec-cli tools list          Installed tools, versions and status
+  appsec-cli --format json TOOL  Result as JSON for scripts and CI
+  appsec-cli update              Install the latest release
 ```
 
 Bedienfehler enden mit Exit 2 und nennen auf stderr die Ursache und einen nächsten Schritt, etwa `Hint: Did you mean 'security-score'?` bei einem Tippfehler oder den Hinweis, eine globale Option vor den Toolnamen zu setzen.
@@ -106,10 +110,10 @@ Die Analyse-Engine bestimmt Revision, Kontext und Bewertungsschema. Der gewählt
 | Tool-Integration | Jedes Tool ist ein Python-Plugin und meldet sich über die entry-point-Gruppe `appsec_cli.tools` an. Tools in anderen Sprachen bekommen einen dünnen Python-Wrapper auf Basis des `ExternalTool`-Helpers. |
 | Ablage | Jedes Tool ist ein Verzeichnis unter `tools/`: eine `tool.toml` für ein JSON-Tool ohne Code oder ein eigenständig baubarer Python-Adapter. Das Suite-Paket nimmt alle Verzeichnisse als Abhängigkeiten auf. Externe Programme behalten ihren eigenen Releasezyklus. |
 | Installation und Updates | `pipx install appsec-cli` liefert alle offiziellen Befehle samt benötigten Tool-Paketen. `appsec-cli update` führt `pipx upgrade` aus, aktualisiert sie gemeinsam, installiert neu hinzugekommene Tools und zeigt die Änderungen. Der Release-Build verlangt für jedes geänderte Paket eine neue Version. |
-| Laden | Hilfe und `tools list` nutzen Entry-Point-Metadaten. Erst Aufruf und `tools describe <tool>` laden das ausgewählte Tool. |
+| Laden | Hilfe und `tools list` nutzen Entry-Point-Metadaten und die vom Release-Build gesammelten Beschreibungen und Beispiele. Erst Aufruf und `tools describe <tool>` laden das ausgewählte Tool. |
 | Ergebnis | Gemeinsames Ergebnisschema v1 (siehe unten). Tools geben ein Ergebnisobjekt zurück und schreiben nicht selbst auf stdout. |
 | Exit-Codes | Berechnet der Kern: 0 ok, 1 Findings ab Schwelle, 2 Bedienfehler, 3 Lauf fehlgeschlagen oder unvollständig |
-| Ausgabe | Text für Menschen und JSON für Automatisierung unterstützen alle Befehle. SARIF exportiert Findings. Logs gehen auf stderr. Im Terminal rahmt appsec-cli die Ansicht des Tools nur ein und färbt nur Status und Severity. |
+| Ausgabe | Text für Menschen und JSON für Automatisierung unterstützen alle Befehle. SARIF exportiert Findings. Logs gehen auf stderr. Im Terminal rahmt appsec-cli die Ansicht des Tools nur ein und färbt nur Status und Severity; nur die Startseite zeigt ein Logo. |
 | Config | TOML in mehreren Ebenen. Die Projekt-Config im Arbeitsverzeichnis darf nur Schwellen setzen und diese nur verschärfen. |
 | KI-Tools | Host-Auswahl und Analysevertrag im zuständigen Adapter. Das Modell darf Alarm schlagen, aber nicht entwarnen. Antworten werden streng geprüft, eine ungültige Antwort ergibt `failed`. Endpoint und Key kommen nie aus dem gescannten Repo. |
 

@@ -1,6 +1,14 @@
 import unittest
 
-from appsec_cli.ui import Style, changes, header, overview, table
+from appsec_cli.ui import (
+    Style,
+    changes,
+    example_lines,
+    header,
+    overview,
+    table,
+    tool_list,
+)
 
 PLAIN = Style(False)
 REPORT = {
@@ -131,15 +139,84 @@ class ResultView(unittest.TestCase):
         same = changes({"before": before, "after": before}, PLAIN)
         self.assertEqual(same, "appsec-cli 0.1.0 is up to date.")
 
-    def test_overview_is_short(self):
+    def test_overview_and_examples(self):
+        example = {"run": "appsec-cli security-score .", "what": "Score it"}
         rows = [
             {
                 "name": "security-score",
                 "help": "Score.",
                 "status": "unchecked",
+                "commands": ["security-score"],
+                "usage": [
+                    {
+                        "command": "security-score",
+                        "summary": "Score.",
+                        "examples": [example, {"run": "appsec-cli x", "what": "x"}],
+                    }
+                ],
+            },
+            {
+                "name": "legacy",
+                "help": "Old tool.",
+                "status": "missing",
                 "commands": [],
+                "usage": [],
+            },
+        ]
+        lines = overview(rows, PLAIN, "0.1.0", "From the AppSec team").splitlines()
+        self.assertEqual(
+            lines[:3],
+            [
+                "appsec-cli 0.1.0",
+                "From the AppSec team",
+                "2 tools · terminal, CI and coding agents",
+            ],
+        )
+        self.assertIn("  security-score  Score.", lines)
+        self.assertIn("    appsec-cli security-score .", lines)
+        self.assertNotIn("    appsec-cli x", lines)
+        self.assertIn("  legacy          Old tool. [missing]", lines)
+        self.assertNotIn("█", "\n".join(lines))
+        coloured = overview(rows, Style(True), "0.1.0", "From the AppSec team")
+        self.assertIn("▄", coloured)
+        self.assertIn("From the AppSec team", coloured)
+        hostile = [
+            {
+                **rows[0],
+                "usage": [
+                    {
+                        **rows[0]["usage"][0],
+                        "examples": [
+                            {"run": "appsec-cli \x1b]0;title\x07 .", "what": "x"}
+                        ],
+                    }
+                ],
             }
         ]
-        lines = overview(rows, PLAIN, "0.1.0").splitlines()
-        self.assertEqual(lines[:2], ["appsec-cli 0.1.0", "Application security tools"])
-        self.assertIn("  security-score       Score.", lines)
+        self.assertNotIn("\x1b", overview(hostile, PLAIN, "0.1.0", "\x1b[31m"))
+        self.assertEqual(
+            example_lines([example, {"run": "appsec-cli a --x", "what": "Run x"}]),
+            [
+                "Examples:",
+                "  # Score it",
+                "  appsec-cli security-score .",
+                "",
+                "  # Run x",
+                "  appsec-cli a --x",
+            ],
+        )
+
+    def test_tool_list_shows_command_summaries(self):
+        row = {
+            "name": "scan",
+            "version": "1.0",
+            "help": "Scan things.",
+            "status": "unchecked",
+            "usage": [
+                {"command": "scan export", "summary": "Export.", "examples": []},
+                {"command": "scan list", "summary": "Scan things.", "examples": []},
+            ],
+        }
+        lines = tool_list([row], PLAIN).splitlines()
+        self.assertIn("    export                        Export.", lines)
+        self.assertIn("    list", lines)

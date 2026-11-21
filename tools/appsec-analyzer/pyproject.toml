@@ -15,3 +15,16 @@ dependencies = ["appsec-cli-core==0.1.0", "appsec-analyzer==0.1.0a0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.appsec-cli.commands.repo-profile]
+summary = "Repository size, languages and build manifests."
+examples = [
+  { run = "appsec-analyzer repo-profile .", what = "Inventory the current repository" },
+]
+
+[tool.appsec-cli.commands.export]
+summary = "Export a saved assessment as SARIF or HTML."
+examples = [
+  { run = "appsec-analyzer export ./assessment ./out", what = "Export a saved assessment as SARIF" },
+  { run = "appsec-analyzer export ./assessment ./out --format html", what = "Export it as HTML (needs Pandoc)" },
+]

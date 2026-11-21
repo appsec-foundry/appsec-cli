@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "appsec-cli"
 version = "0.1.0"
 requires-python = ">=3.10"
-description = "AppSec team command suite."
+description = "Security tools from your AppSec team"
 dynamic = ["dependencies", "entry-points", "scripts"]
 
 [tool.setuptools]

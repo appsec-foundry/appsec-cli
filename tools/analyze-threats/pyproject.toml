@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "appsec-plugin-analyze-threats"
 version = "0.1.0"
 requires-python = ">=3.10"
-description = "Review threats in a pull request, commit or repository."
+description = "Threat review of a repository, commit or PR."
 dependencies = ["appsec-cli-core==0.1.0", "appsec-analyzer==0.1.0a0"]
 
 [project.entry-points."appsec_cli.tools"]
@@ -14,3 +14,11 @@ dependencies = ["appsec-cli-core==0.1.0", "appsec-analyzer==0.1.0a0"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.appsec-cli]
+examples = [
+  { run = "analyze-threats --commit HEAD", what = "Review the threats of the last commit" },
+  { run = "analyze-threats --pr https://github.com/OWNER/REPO/pull/42", what = "Review a GitHub pull request" },
+  { run = "analyze-threats .", what = "Review the whole repository at its committed HEAD" },
+  { run = "analyze-threats --commit HEAD --profile codex-cli", what = "Use Codex CLI instead of Claude Code" },
+]

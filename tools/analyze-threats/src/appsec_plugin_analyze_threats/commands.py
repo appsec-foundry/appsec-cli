@@ -118,7 +118,7 @@ def analyze(
         Optional[str], typer.Option(help="Model name or configured gateway alias.")
     ] = None,
 ) -> Result:
-    """Assess threats with cited context. Examples: analyze-threats . | analyze-threats --commit HEAD"""
+    """Assess threats in the committed HEAD, one commit or a pull request, with cited evidence."""
     from appsec_analyzer.engine import initialize
 
     initialize()

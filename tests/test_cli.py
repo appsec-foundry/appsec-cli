@@ -3,6 +3,8 @@
 import io
 import json
 import os
+import subprocess
+import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
@@ -32,8 +34,9 @@ class Cli(unittest.TestCase):
         code, out, _ = self.call()
         self.assertEqual(code, 0)
         self.assertTrue(
-            out.startswith("appsec-cli 0.1.0\nApplication security tools\n")
+            out.startswith("appsec-cli 0.1.0\nSecurity tools from your AppSec team\n")
         )
+        self.assertIn("\n    appsec-cli security-score .\n", out)
         self.assertNotIn("tools new", out)
         code, out, _ = self.call("--help")
         self.assertEqual(code, 0)
@@ -45,6 +48,10 @@ class Cli(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertIn("[default: .]", out)
         self.assertNotIn("\\[", out)
+        self.assertIn(
+            "Examples:\n  # Score the current repository\n  appsec-cli security-score .\n",
+            out,
+        )
 
     def test_unknown_names_suggest_the_closest(self):
         code, _, err = self.call("securityscore", ".")
@@ -58,7 +65,10 @@ class Cli(unittest.TestCase):
         self.assertIn("Hint: Did you mean 'export'?", err)
         code, out, _ = self.call("appsec-analyzer")
         self.assertEqual(code, 0)
-        self.assertIn("repo-profile", out)
+        self.assertIn(
+            "repo-profile  Repository size, languages and build manifests.", out
+        )
+        self.assertIn("  # Inventory the current repository\n", out)
 
     def test_global_option_after_tool(self):
         code, _, err = self.call("security-score", ".", "--format", "json")
@@ -78,6 +88,25 @@ class Cli(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("Error: Tool 'appsec-verifier' is disabled.", err)
 
+    def test_start_page_loads_no_tool(self):
+        script = (
+            "import sys; from appsec_cli.cli import main; main([]); "
+            "print(sorted(m for m in sys.modules if m.startswith('appsec_plugin_')))"
+        )
+        run = subprocess.run(
+            [sys.executable, "-c", script], capture_output=True, text=True, check=True
+        )
+        self.assertIn("appsec-cli security-score .", run.stdout)
+        self.assertTrue(run.stdout.endswith("\n[]\n"))
+
+    def test_unusable_examples_leave_the_tool(self):
+        broken = {"security-score": {"commands": {"missing": {}}}}
+        with patch("appsec_cli.catalog.collected", return_value=broken):
+            code, out, _ = self.call()
+        self.assertEqual(code, 0)
+        self.assertIn("  security-score ", out)
+        self.assertNotIn("appsec-cli security-score .", out)
+
     def test_update_needs_pipx(self):
         code, _, err = self.call("update", "--yes")
         self.assertEqual(code, 2)
@@ -88,6 +117,8 @@ class Cli(unittest.TestCase):
         self.assertEqual(code, 0)
         tools = {t["name"]: t for t in json.loads(out)["tools"]}
         self.assertEqual(tools["security-score"]["version"], "0.1.0")
+        first = tools["security-score"]["usage"][0]["examples"][0]
+        self.assertEqual(first["run"], "appsec-cli security-score .")
         code, out, _ = self.call("tools", "describe", "security-score")
         self.assertEqual(code, 0)
         self.assertIn("--commit TEXT", out)
