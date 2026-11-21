@@ -42,6 +42,21 @@ def run_status(rc, model):
     )
 
 
+def finding(row):
+    path = row.get("path") or row.get("file")
+    location = {"kind": "file", "path": path}
+    if isinstance(row.get("line"), int) and row["line"] > 0:
+        location["start_line"] = row["line"]
+    fix = row.get("next_action")
+    return Finding(
+        rule="security-score/" + row["rule"],
+        severity=row["severity"],
+        title=row.get("title") or row["rule"],
+        locations=[location] if isinstance(path, str) else None,
+        remediation=fix if isinstance(fix, str) else None,
+    )
+
+
 @command(
     engine_distribution="appsec-security-score", data=Score | Change, findings=True
 )
@@ -86,24 +101,21 @@ def score(
         ]
         points = min(values) if values and rating != "Not assessed" else None
         data = Score(score=points, rating=rating)
-        summary = f"{points}/100 ({rating})" if points is not None else rating
-    findings = []
-    for row in model.get("findings", []):
-        loc = row.get("path") or row.get("file")
-        findings.append(
-            Finding(
-                rule="security-score/" + row["rule"],
-                severity=row["severity"],
-                title=row.get("title") or row["rule"],
-                locations=[{"kind": "file", "path": loc}]
-                if isinstance(loc, str)
-                else None,
-            )
+        summary = (
+            f"Score {points}/100 ({rating})"
+            if points is not None
+            else f"Score: {rating}"
         )
+    target = {"kind": "commit" if commit else "repository", "path": str(repo.resolve())}
+    if commit:
+        target["revision"] = commit
+    if staged:
+        target["staged"] = True
     return Result(
         status=status,
         summary=summary,
+        target=target,
         data=data.model_dump(),
-        findings=findings,
+        findings=[finding(row) for row in model.get("findings", [])],
         diagnostics=[diagnostic] if diagnostic else None,
     )

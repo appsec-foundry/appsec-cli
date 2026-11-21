@@ -37,6 +37,10 @@ def parser():
     return p
 
 
+def style_for(opts):
+    return ui.Style.detect(opts.no_color or bool(opts.output))
+
+
 def as_command(spec):
     app = typer.Typer(
         add_completion=False, rich_markup_mode=None, pretty_exceptions_enable=False
@@ -148,7 +152,7 @@ def manage(args, tools, args0):
     return (
         {"schema_version": 1, "tools": rows}
         if args0.format == "json"
-        else ui.overview(rows, args0.no_color, full=True)
+        else ui.overview(rows, style_for(args0), version("appsec-cli"), full=True)
     )
 
 
@@ -163,7 +167,7 @@ def execute(opts):
         rows = [
             tool.description() for tool in tools.values() if tool.status != "disabled"
         ]
-        value = ui.overview(rows, opts.no_color)
+        value = ui.overview(rows, style_for(opts), version("appsec-cli"))
         if opts.help:
             value += "\n\n" + parser().format_help()
         emit(
@@ -242,7 +246,12 @@ def execute(opts):
     value = {
         "json": lambda: report,
         "table": lambda: ui.table(
-            report, opts.no_color or bool(opts.output), spec.render_data
+            report,
+            style_for(opts),
+            spec.render_data,
+            threshold=fail,
+            code=code,
+            verbose=opts.verbose,
         ),
         "sarif": lambda: sarif(report, result.findings or []),
     }[opts.format]()
@@ -286,7 +295,7 @@ def main(argv=None):
             if opts.format == "sarif"
             else result
             if opts.format == "json"
-            else ui.table(result, opts.no_color)
+            else ui.table(result, style_for(opts))
         )
         try:
             emit(value, opts.output)

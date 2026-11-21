@@ -128,7 +128,15 @@ class Contracts(unittest.TestCase):
                 "overall": {"rating": "Bad"},
                 "subscores": [{"score": 40}],
                 "checks": checks,
-                "findings": [{"rule": "PY-SQL", "severity": "high", "path": "a.py"}],
+                "findings": [
+                    {
+                        "rule": "PY-SQL",
+                        "severity": "high",
+                        "path": "a.py",
+                        "line": 3,
+                        "next_action": "Bind parameters.",
+                    }
+                ],
             }
             with (
                 self.subTest(rc=rc, checks=checks),
@@ -155,6 +163,9 @@ class Contracts(unittest.TestCase):
                     [diagnostic] if diagnostic else [],
                 )
                 self.assertEqual(code, exit_code)
+                finding = result.findings[0]
+                self.assertEqual(finding.locations[0]["start_line"], 3)
+                self.assertEqual(finding.remediation, "Bind parameters.")
 
     def test_report_projection(self):
         with tempfile.TemporaryDirectory() as tmp:

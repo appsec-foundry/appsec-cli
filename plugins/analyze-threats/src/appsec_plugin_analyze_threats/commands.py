@@ -64,13 +64,13 @@ def render_review(data):
         ("trust_boundaries", "Trust boundaries"),
     ):
         if data["architecture"][key]:
-            lines.append(label)
+            lines.extend(["", label])
             lines.extend("  " + item for item in data["architecture"][key])
     for threat in data["threats"]:
         lines.extend(
             [
                 "",
-                f"{threat['change']} · {threat['title']} ({threat['path']}:{threat['line']}, {threat['side']})",
+                f"{threat['severity'].upper()} · {threat['change']} · {threat['title']} ({threat['path']}:{threat['line']}, {threat['side']})",
                 f"  Actor and conditions: {threat['actor']}. {threat['prerequisites']}",
                 "  Impact: " + threat["impact"],
                 "  Controls: " + threat["existing_controls"],
@@ -78,7 +78,7 @@ def render_review(data):
             ]
         )
     if data["open_questions"]:
-        lines.append("Open questions")
+        lines.extend(["", "Open questions"])
         lines.extend("  " + question for question in data["open_questions"])
     return lines
 
