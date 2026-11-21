@@ -92,7 +92,16 @@ Der Nutzungsskill entdeckt die tatsächlich aktivierten Befehle und liest deren 
 
 ## Für das AppSec-Team
 
-Neue Plugins lassen sich als Datenbefehl, Finding-Check, Befehlsgruppe oder Wrapper für ein externes Programm anlegen. Der Generator schreibt ein eigenes Python-Paket mit Entry Point und Vertragstest. [Plugin erstellen, verteilen und aktualisieren](docs/writing-a-tool.md)
+Für einen JSON-Wrapper genügt eine Datei im Suite-Repository. Beispielsweise macht `modules/repo-profil/tool.toml` aus dem Analyzer-Aufruf einen eigenen Befehl:
+
+```toml
+engine = "appsec-analyzer==0.1.0a0"
+args = ["repo-profile", "{repo}", "--json"]
+```
+
+Nach dem Suite-Upgrade rufen Teams einfach `appsec-cli repo-profil .` auf. Der Name kommt aus dem Verzeichnis, die Engine aus den Paketabhängigkeiten der Suite.
+
+Individuelle Plugins lassen sich als Datenbefehl, Finding-Check, Befehlsgruppe oder Wrapper für ein externes Programm anlegen. Der Generator schreibt ein eigenes Python-Paket mit Entry Point und Vertragstest. [Plugin erstellen, verteilen und aktualisieren](docs/writing-a-tool.md)
 
 Die Release-Prüfung auf einem Linux-x86_64-Runner mit Python 3.10 und pipx verwendet die lokalen, vertrauenswürdigen Checkouts von appsec-tools und appsec-analyzer. Der Builder nutzt die angegebenen Commit-IDs, auch wenn das Arbeitsverzeichnis der Engine auf einem anderen Stand steht.
 

@@ -111,6 +111,14 @@ def main():
         old_suite = work / "old-suite"
         shutil.copytree(ROOT / "src/appsec_suite", old_suite / "src/appsec_suite")
         shutil.copytree(ROOT / "skills", old_suite / "skills")
+        shutil.copy(ROOT / "setup.py", old_suite)
+        shutil.copytree(ROOT / "modules", old_suite / "modules")
+        # A team module consists exclusively of this single TOML file.
+        local_module = old_suite / "modules" / "repo-inventory"
+        local_module.mkdir()
+        (local_module / "tool.toml").write_text(
+            'engine = "appsec-analyzer==0.1.0a0"\nargs = ["repo-profile", "{repo}", "--json"]\n'
+        )
         manifest = (
             (ROOT / "pyproject.toml")
             .read_text()
@@ -163,6 +171,14 @@ def main():
         commit("initial")
         (fixture / "notes.md").write_text("Release notes\n")
         commit("doc update")
+
+        assert result("repo-inventory", fixture)["status"] == "ok"
+        assert (
+            result("tools", "describe", "repo-inventory")["definitions"][0]["command"]
+            == "repo-inventory"
+        )
+        cfg.write_text('[plugins]\ndisabled=["appsec-analyzer","repo-inventory"]\n')
+        run(cli, "repo-inventory", fixture, codes=(2,))
 
         def score_version():
             return result("security-score", fixture, codes=(0, 1, 3))["run"][

@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=77"]
+requires = ["setuptools>=77", "packaging>=24,<27", "tomli>=2.2.1,<3; python_version < '3.11'"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -7,19 +7,23 @@ name = "appsec-cli"
 version = "0.1.0"
 requires-python = ">=3.10"
 description = "AppSec team command suite."
+dynamic = ["dependencies", "entry-points", "scripts"]
+
+[tool.appsec-suite]
 dependencies = ["appsec-cli-core==0.1.0", "appsec-plugin-security-score==0.1.0", "appsec-plugin-analyze-threats==0.1.0", "appsec-plugin-appsec-analyzer==0.1.0", "appsec-plugin-appsec-verifier==0.1.0"]
 
-[project.scripts]
-appsec-cli = "appsec_cli.cli:main"
-
-[project.entry-points."appsec_cli.bundle"]
+[tool.appsec-suite.bundle]
 security-score = "appsec_plugin_security_score"
 analyze-threats = "appsec_plugin_analyze_threats"
 appsec-analyzer = "appsec_plugin_appsec_analyzer"
 appsec-verifier = "appsec_plugin_appsec_verifier"
 
-[tool.setuptools.packages.find]
-where = ["src"]
+[tool.setuptools]
+packages = ["appsec_suite", "appsec_suite.modules"]
+package-dir = {appsec_suite = "src/appsec_suite", "appsec_suite.modules" = "modules"}
+
+[tool.setuptools.package-data]
+"appsec_suite.modules" = ["*/tool.toml"]
 
 [tool.setuptools.data-files]
 "share/appsec-cli/skills/appsec-cli" = ["skills/appsec-cli/SKILL.md"]

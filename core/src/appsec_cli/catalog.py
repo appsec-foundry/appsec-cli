@@ -1,7 +1,8 @@
 """Discover commands from installed distribution metadata, without importing plugins."""
 
 from dataclasses import dataclass, field
-from importlib import metadata
+from importlib import metadata, resources
+from pathlib import Path
 from .config import NAME
 from .sdk import Command, ToolError
 
@@ -35,6 +36,8 @@ class Tool:
             if not isinstance(spec, Command) or spec.api_version != 1:
                 raise ValueError
             return spec
+        except ToolError:
+            raise
         except Exception:
             raise ToolError(
                 "plugin_incompatible", f"Cannot load the command from {self.package}."
@@ -86,4 +89,35 @@ def discover(cfg):
         ):
             tool.status = "invalid"
         tools[name] = tool
-    return tools
+    for manifest_entry in bundle.entry_points:
+        if manifest_entry.group != "appsec_cli.manifests":
+            continue
+        name = manifest_entry.name
+        if not NAME.fullmatch(name) or name in {"tools", "schema"}:
+            raise ToolError(
+                "plugin_conflict", "Invalid module name in the suite catalog."
+            )
+        if name in tools and tools[name].status not in {"missing", "disabled"}:
+            raise ToolError("plugin_conflict", f"Duplicate command name: {name}.")
+        status = "disabled" if name in cfg.disabled else "unchecked"
+        summary = f"Run {name}."
+        entry = None
+        if status != "disabled":
+            from appsec_suite.manifests import Manifest
+            from .manifest_command import ManifestEntry
+
+            try:
+                path = (
+                    Path(str(resources.files("appsec_suite.modules")))
+                    / name
+                    / "tool.toml"
+                )
+                manifest = Manifest.read(path)
+                summary = manifest.description
+                entry = ManifestEntry(manifest)
+            except (OSError, ValueError):
+                status = "invalid"
+        tools[name] = Tool(
+            name, "appsec-cli", bundle.version, summary, status, {"": entry}
+        )
+    return dict(sorted(tools.items()))

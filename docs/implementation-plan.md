@@ -4,6 +4,8 @@ Stand 21.11.2026 · Suite 0.1.0 ist lokal als Wheel-Satz gebaut. Installation, U
 
 Der pipx-Upgrade-Test hat die echte Score-Engine von 0.3.2 auf 0.3.3 aktualisiert und dabei eine Deaktivierung erhalten. Der Offline-Verifier hat einen vorhandenen Bericht mit 69 Annotationen verarbeitet. Eine Finding-Ausgabe wurde gegen das offizielle SARIF-2.1.0-Schema validiert. Bei den Offline-Installationstests wurden drei externe Python-Wheels aus den installierten, mit RECORD abgeglichenen Dateien rekonstruiert. Das Release-Lock verwendet die Hashes der Original-Wheels.
 
+Für JSON-Tools reicht im Suite-Repository eine Datei `modules/<name>/tool.toml`. Der Build übernimmt den Engine-Pin und registriert den Verzeichnisnamen als Befehl. Individuelle Python-Adapter stehen für abweichende Ausgabeformate und Finding-Regeln bereit.
+
 Die Release-Auswahl steckt in den Paketmetadaten der Suite. Der Kern liest Befehlsnamen ohne Plugin-Import und lädt den Handler erst für Aufruf oder Detailansicht. Die Terminaloberfläche orientiert sich am AppSec Verifier. Die Adapter nutzen die paketierten Engines oder beim Verifier das Berichtsformat. Beim Threat-Review steuert der Adapter Quellauswahl und Analysevertrag und nutzt die Host-Transporte des Analyzers sowie HTTP für die API-Profile.
 
 ## Ziel
