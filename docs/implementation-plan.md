@@ -50,7 +50,7 @@ Auch `appsec-analyzer` und `appsec-verifier` erhalten eigene Plugin-Pakete. Als 
 
 `appsec-cli` ist das Installationspaket für die Suite. Seine Release-Metadaten legen die mitgelieferten Plugin-Pakete und getesteten Versionen fest. Der Kern enthält ausschließlich den gemeinsamen Vertrag, die Discovery und Verwaltung. Neue Tools, auch aus separaten Repositories, registrieren sich über Entry Points. Das gilt ebenso für die ersten Tools und für spätere Ergänzungen.
 
-Standardmäßig sind die offiziellen Plugins des installierten Releases aktiv. Teams können jedes davon in der Benutzer- oder vertrauenswürdigen CI-Konfiguration deaktivieren. Beispiel:
+Standardmäßig sind die offiziellen Plugins des installierten Releases aktiv. Ein Tool mit `enabled = false` in seinem Verzeichnis liefert der Release mit, es bleibt aber aus, bis ein Team es unter `[plugins].additional` einschaltet. Teams können jedes davon in der Benutzer- oder vertrauenswürdigen CI-Konfiguration deaktivieren. Beispiel:
 
 ```toml
 [plugins]
@@ -110,7 +110,7 @@ Die Analyse-Engine bestimmt Revision, Kontext und Bewertungsschema. Der gewählt
 | Tool-Integration | Jedes Tool ist ein Python-Plugin und meldet sich über die entry-point-Gruppe `appsec_cli.tools` an. Tools in anderen Sprachen bekommen einen dünnen Python-Wrapper auf Basis des `ExternalTool`-Helpers. |
 | Ablage | Jedes Tool ist ein Verzeichnis unter `tools/`: eine `tool.toml` für ein JSON-Tool ohne Code oder ein eigenständig baubarer Python-Adapter. Das Suite-Paket nimmt alle Verzeichnisse als Abhängigkeiten auf. Externe Programme behalten ihren eigenen Releasezyklus. |
 | Installation und Updates | `pipx install appsec-cli` liefert alle offiziellen Befehle samt benötigten Tool-Paketen. `appsec-cli update` führt `pipx upgrade` aus, aktualisiert sie gemeinsam, installiert neu hinzugekommene Tools und zeigt die Änderungen. Der Release-Build verlangt für jedes geänderte Paket eine neue Version. |
-| Engine-Quellen | Der Build klont jede Engine aus einer Git-URL und checkt den in `scripts/build_release.py` festgelegten Commit aus. Standard sind die GitHub-Repos von appsec-foundry. `SCORE_REPO` und `ANALYZER_REPO` wählen einen anderen Git-Server, etwa ein internes GitLab, oder einen lokalen Checkout. Vorab muss nichts geklont sein. |
+| Engine-Quellen | Jedes Tool nennt in seinem Verzeichnis die Git-Quelle seiner Engine mit URL und vollständigem Commit-Hash. Der Build klont sie und checkt diesen Commit aus. Eine Engine von PyPI steht stattdessen mit Hash im Lockfile. Im Beispiel-Setup sind es die GitHub-Repos von appsec-foundry. `ENGINE_SOURCES` wählt je Engine einen anderen Git-Server, etwa ein internes GitLab, oder einen lokalen Checkout. Vorab muss nichts geklont sein. |
 | Laden | Hilfe und `tools list` nutzen Entry-Point-Metadaten und die vom Release-Build gesammelten Beschreibungen und Beispiele. Erst Aufruf und `tools describe <tool>` laden das ausgewählte Tool. |
 | Ergebnis | Gemeinsames Ergebnisschema v1 (siehe unten). Tools geben ein Ergebnisobjekt zurück und schreiben nicht selbst auf stdout. |
 | Exit-Codes | Berechnet der Kern: 0 ok, 1 Findings ab Schwelle, 2 Bedienfehler, 3 Lauf fehlgeschlagen oder unvollständig |

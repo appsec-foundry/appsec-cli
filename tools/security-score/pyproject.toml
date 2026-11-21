@@ -23,3 +23,9 @@ examples = [
   { run = "security-score --commit HEAD", what = "How security-relevant was the last commit?" },
   { run = "security-score --staged", what = "Check staged changes before you commit" },
 ]
+
+[tool.appsec-cli.source]
+package = "appsec-security-score"
+git = "https://github.com/appsec-foundry/appsec-tools.git"
+commit = "1c5a9b21d570c7c5650f80de3c7a1fdd43932d82"
+path = "security-score"

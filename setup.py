@@ -3,6 +3,7 @@
 A directory with tool.toml wraps a JSON engine; one with pyproject.toml is a
 Python adapter that is built as its own wheel and pinned here. Directories whose
 name starts with an underscore, such as tools/_template, are not part of it.
+A tool with enabled = false is shipped, but stays off until a team enables it.
 """
 
 import importlib.util
@@ -36,6 +37,7 @@ entries = {
     "console_scripts": ["appsec-cli = appsec_cli.cli:main"],
     "appsec_cli.bundle": [],
     "appsec_cli.manifests": [],
+    "appsec_cli.optional": [],
 }
 usage = {}
 for folder in sorted((ROOT / "tools").iterdir()):
@@ -48,8 +50,11 @@ for folder in sorted((ROOT / "tools").iterdir()):
     if adapter.is_file() == wrapper.is_file():
         raise ValueError(f"tools/{name}: add either tool.toml or pyproject.toml")
     if wrapper.is_file():
-        dependencies.append(str(manifests.Manifest.read(wrapper).engine))
+        manifest = manifests.Manifest.read(wrapper)
+        dependencies.append(str(manifest.engine))
         entries["appsec_cli.manifests"].append(f"{name} = appsec_suite.tools")
+        if not manifest.enabled:
+            entries["appsec_cli.optional"].append(f"{name} = appsec_suite.tools")
         continue
     doc = load(adapter)
     package = doc["project"]
@@ -58,8 +63,14 @@ for folder in sorted((ROOT / "tools").iterdir()):
     dependencies.append(f"{package['name']}=={package['version']}")
     module = "appsec_plugin_" + name.replace("-", "_")
     entries["appsec_cli.bundle"].append(f"{name} = {module}")
-    table = doc.get("tool", {}).get("appsec-cli")
-    if table is not None:
+    table = doc.get("tool", {}).get("appsec-cli", {})
+    if not isinstance(table, dict):
+        raise ValueError(f"tools/{name}: [tool.appsec-cli] is a table")
+    if not manifests.enabled(table.get("enabled", True), name):
+        entries["appsec_cli.optional"].append(f"{name} = {module}")
+    # scripts/build_release.py reads the source; the CLI needs only the usage.
+    table = {k: v for k, v in table.items() if k not in ("enabled", "source")}
+    if table:
         commands = package.get("entry-points", {}).get("appsec_cli.tools", {})
         manifests.usage(name, table, {c.partition(".")[2] for c in commands})
         usage[name] = table

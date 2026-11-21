@@ -1,7 +1,9 @@
-"""Build the suite wheel set from this checkout and the pinned upstream commits."""
+"""Build the suite wheel set from this checkout and the engine sources of its tools."""
 
 import hashlib
+import importlib.util
 from argparse import ArgumentParser
+from dataclasses import replace
 from pathlib import Path
 import subprocess
 import sys
@@ -12,12 +14,15 @@ try:
 except ImportError:  # Python 3.10
     import tomli as tomllib
 
+from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCES = (
-    ("score", "1c5a9b21d570c7c5650f80de3c7a1fdd43932d82", "security-score"),
-    ("analyzer", "165425abccc7ca9b3dddb04c8f7a080293b0023e", "."),
+_spec = importlib.util.spec_from_file_location(
+    "manifests", ROOT / "core/src/appsec_cli/manifests.py"
 )
+manifests = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(manifests)
 
 
 def adapters(root=ROOT):
@@ -27,6 +32,55 @@ def adapters(root=ROOT):
         for path in (root / "tools").glob("*/pyproject.toml")
         if not path.parent.name.startswith(("_", "."))
     )
+
+
+def declared(folder):
+    """The engine source a tool directory names, or None."""
+    if (folder / "tool.toml").is_file():
+        return manifests.Manifest.read(folder / "tool.toml").source
+    if not (folder / "pyproject.toml").is_file():
+        return None
+    doc = tomllib.loads((folder / "pyproject.toml").read_text())
+    table = doc.get("tool", {}).get("appsec-cli", {}).get("source")
+    if table is None:
+        return None
+    spec = manifests.source(table, folder.name)
+    pinned = {
+        canonicalize_name(req.name)
+        for req in map(Requirement, doc["project"].get("dependencies", []))
+        if [pin.operator for pin in req.specifier] == ["=="]
+    }
+    if spec.package not in pinned:
+        raise ValueError(f"{folder.name}: pin {spec.package} with == in dependencies")
+    return spec
+
+
+def sources(root=ROOT, overrides=()):
+    """The engines the tool directories build from Git, by package name.
+
+    overrides holds PACKAGE=URL pairs that build an engine from another Git URL,
+    such as an internal mirror, or from a local checkout. The commit stays.
+    """
+    found = {}
+    for folder in sorted((root / "tools").iterdir()):
+        if not folder.is_dir() or folder.name.startswith(("_", ".")):
+            continue
+        try:
+            spec = declared(folder)
+        except ValueError as error:
+            raise SystemExit(f"tools/{error}") from None
+        if spec is not None and found.setdefault(spec.package, spec) != spec:
+            raise SystemExit(
+                f"tools/{folder.name}: another tool names a different source"
+                f" for {spec.package}."
+            )
+    for pair in overrides:
+        package, _, url = pair.partition("=")
+        key = canonicalize_name(package)
+        if key not in found or not url:
+            raise SystemExit(f"--source {pair}: no tool builds {package} from Git.")
+        found[key] = replace(found[key], git=url)
+    return found
 
 
 def git(root, *args):
@@ -80,6 +134,7 @@ def checkout(source, commit, target):
             "clone",
             "--no-local",
             "--no-checkout",
+            "--",
             source,
             str(target),
         ],
@@ -121,12 +176,11 @@ def build(project, target):
 def main():
     p = ArgumentParser(description=__doc__)
     p.add_argument(
-        "--score", required=True, help="Trusted appsec-tools Git URL or checkout"
-    )
-    p.add_argument(
-        "--analyzer",
-        required=True,
-        help="Trusted appsec-analyzer Git URL or checkout",
+        "--source",
+        action="append",
+        default=[],
+        metavar="PACKAGE=URL",
+        help="Build an engine from another trusted Git URL or checkout",
     )
     p.add_argument("--out", type=Path, default=ROOT / "dist")
     p.add_argument(
@@ -135,22 +189,22 @@ def main():
         help="Also stop when a version would not reach the teams (make release-check)",
     )
     args = p.parse_args()
+    engines = sources(overrides=args.source)
     if args.release:
         check_versions()
     target = args.out.resolve()
     target.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="appsec-build-") as tmp:
-        for name, commit, folder in SOURCES:
-            checkout(getattr(args, name), commit, Path(tmp, name))
-            build(Path(tmp, name, folder), target)
+        for number, spec in enumerate(engines.values()):
+            checkout(spec.git, spec.commit, Path(tmp, str(number)))
+            build(Path(tmp, str(number), spec.path), target)
     for project in [ROOT / "core", *adapters(), ROOT]:
         build(project, target)
     # An index may contain multiple releases. Freeze only this build's outputs.
     names = [
         "appsec_cli",
         "appsec_cli_core",
-        "appsec_analyzer",
-        "appsec_security_score",
+        *(package.replace("-", "_") for package in engines),
         *("appsec_plugin_" + p.name.replace("-", "_") for p in adapters()),
     ]
     wheels = [w for w in target.glob("*.whl") if w.name.split("-")[0] in names]

@@ -218,14 +218,14 @@ A release is a set of wheels with fixed versions. Build and check it on Linux x8
 make release-check
 ```
 
-This audits the pinned dependencies against PyPI, builds the engines from the commits pinned in [scripts/build_release.py](scripts/build_release.py), builds the core, adapters, and suite, and tests the result, including a real `pipx install` and `appsec-cli update`. The wheels and `release.lock` with their hashes end up in `dist/`.
+This audits the pinned dependencies against PyPI, builds the engines from the Git sources named in the tool directories, builds the core, adapters, and suite, and tests the result, including a real `pipx install` and `appsec-cli update`. The wheels and `release.lock` with their hashes end up in `dist/`.
 
-The build clones the engines from GitHub. To use another Git server, such as an internal GitLab, or a local checkout, set `SCORE_REPO` and `ANALYZER_REPO` to its Git URL or path. This works the same for `make install`:
+The tools of the example setup build their engines from GitHub. To use another Git server, such as an internal GitLab, or a local checkout, set `ENGINE_SOURCES` to pairs of engine package and Git URL or path. This works the same for `make install`:
 
 ```sh
-make release-check \
-  SCORE_REPO=https://gitlab.example.com/appsec/appsec-tools.git \
-  ANALYZER_REPO=https://gitlab.example.com/appsec/appsec-analyzer.git
+make release-check ENGINE_SOURCES="\
+  appsec-security-score=https://gitlab.example.com/appsec/appsec-tools.git \
+  appsec-analyzer=https://gitlab.example.com/appsec/appsec-analyzer.git"
 ```
 
 The source must contain the pinned commits, otherwise the build stops. The build runs the engines' packaging code, so use only sources you trust.
@@ -259,7 +259,7 @@ fail_on = "medium"               # threshold for one tool
 
 [plugins]                        # user configuration only
 disabled = ["appsec-verifier"]   # hide official tools
-additional = ["team-inventory"]  # enable the separately installed appsec-plugin-team-inventory
+additional = ["team-inventory"]  # enable a tool that is off by default, or a separately installed one
 ```
 
 The threshold comes from the first of these that is set: `--fail-on`, `APPSEC_CLI_FAIL_ON`, `[tools.<name>]`, `fail_on`, the tool's own default, `low`. A project configuration can then only make it stricter, for example `medium` instead of `high`. Any other key in a project configuration, such as `[plugins]`, an endpoint, or a path, stops the run with `config_forbidden_key`.

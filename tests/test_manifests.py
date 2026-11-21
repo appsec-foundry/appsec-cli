@@ -1,11 +1,15 @@
+from importlib import metadata
 from pathlib import Path
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
+from appsec_cli.catalog import discover
+from appsec_cli.config import Settings
 from appsec_cli.manifest_command import from_manifest
 from appsec_cli.sdk import ToolError
-from appsec_cli.manifests import Manifest, usage
+from appsec_cli.manifests import Manifest, Source, usage
 
 
 class ManifestTests(unittest.TestCase):
@@ -97,7 +101,82 @@ class ManifestTests(unittest.TestCase):
             with self.subTest(table=table), self.assertRaises(ValueError):
                 usage("tool", table, commands)
 
+    def test_enabled_and_source(self):
+        spec = self.read('engine = "a==1"')
+        self.assertTrue(spec.enabled)
+        self.assertIsNone(spec.source)
+        commit = "0123456789abcdef0123456789abcdef01234567"
+        spec = self.read(
+            'engine = "Team_Engine==1"\nenabled = false\n[source]\n'
+            f'git = "https://git.example.com/engine.git"\ncommit = "{commit}"\n'
+            'path = "engine"'
+        )
+        self.assertFalse(spec.enabled)
+        self.assertEqual(
+            spec.source,
+            Source(
+                "team-engine", "https://git.example.com/engine.git", commit, "engine"
+            ),
+        )
+        git = 'git = "https://git.example.com/engine.git"\n'
+        for text in (
+            'enabled = "no"',
+            "[source]\n" + git,
+            "[source]\n" + git + 'commit = "main"',
+            "[source]\n" + git + 'commit = "0123456"',
+            f'[source]\ngit = "--upload-pack=touch x"\ncommit = "{commit}"',
+            f'[source]\n{git}commit = "{commit}"\npath = "../core"',
+            f'[source]\n{git}commit = "{commit}"\npath = "/srv/engine"',
+            f'[source]\n{git}commit = "{commit}"\npackage = "other"',
+        ):
+            with self.subTest(text=text), self.assertRaises(ValueError):
+                self.read('engine = "a==1"\n' + text)
+
     def test_symlink_rejected(self):
         self.path.symlink_to(self.path.parent / "missing")
         with self.assertRaises(ValueError):
             Manifest.read(self.path)
+
+
+class DefaultOff(unittest.TestCase):
+    """A tool shipped with enabled = false waits for [plugins].additional."""
+
+    def statuses(self, **selection):
+        def entry(name, group, value="appsec_plugin_team"):
+            return metadata.EntryPoint(name, value, group)
+
+        dists = {
+            "appsec-cli": SimpleNamespace(
+                entry_points=[
+                    entry("team", "appsec_cli.bundle"),
+                    entry("team", "appsec_cli.optional"),
+                    entry("inventory", "appsec_cli.manifests", "appsec_suite.tools"),
+                    entry("inventory", "appsec_cli.optional", "appsec_suite.tools"),
+                ]
+            ),
+            "appsec-plugin-team": SimpleNamespace(
+                entry_points=[
+                    entry("team", "appsec_cli.tools", "appsec_plugin_team:run")
+                ],
+                version="1.0",
+                metadata={"Summary": "Team tool."},
+            ),
+        }
+
+        def distribution(name):
+            if name not in dists:
+                raise metadata.PackageNotFoundError(name)
+            return dists[name]
+
+        cfg = Settings(**{key: set(names) for key, names in selection.items()})
+        with patch("appsec_cli.catalog.metadata.distribution", distribution):
+            tools = discover(cfg)
+        return tools["team"].status, tools["inventory"].status
+
+    def test_off_until_enabled(self):
+        self.assertEqual(self.statuses(), ("disabled", "disabled"))
+        self.assertEqual(self.statuses(additional=["team"]), ("unchecked", "disabled"))
+        self.assertEqual(
+            self.statuses(additional=["team"], disabled=["team"]),
+            ("disabled", "disabled"),
+        )

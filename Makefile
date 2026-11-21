@@ -1,7 +1,9 @@
 PYTHON ?= python3
-# Git URL or local checkout of each engine; the build checks out the pinned commit.
-SCORE_REPO ?= https://github.com/appsec-foundry/appsec-tools.git
-ANALYZER_REPO ?= https://github.com/appsec-foundry/appsec-analyzer.git
+# Each tool names the Git source of its engine. ENGINE_SOURCES builds engines from
+# another Git URL or a local checkout instead, as space-separated PACKAGE=URL
+# pairs; the build still checks out the commit pinned in the tool's directory.
+ENGINE_SOURCES ?=
+SOURCE_ARGS := $(foreach s,$(ENGINE_SOURCES),--source $(s))
 WHEELS ?= .wheelhouse
 VENV := .venv/bin/python
 LOCK := requirements-linux-py310.lock
@@ -21,7 +23,7 @@ release-check:
 	$(VENV) -m pip install --no-index --no-deps --find-links dist --require-hashes -r dist/release.lock
 	$(VENV) -m pip check
 	$(VENV) -m unittest discover -s tests
-	$(VENV) tests/pipx_release.py --score $(SCORE_REPO) --wheels $(WHEELS)
+	$(VENV) tests/pipx_release.py $(SOURCE_ARGS) --wheels $(WHEELS)
 
 # Build the wheels of the suite and its engines in dist/.
 build:
@@ -29,4 +31,4 @@ build:
 	$(VENV) -m pip download -q --only-binary=:all: --require-hashes -r $(LOCK) -d $(WHEELS)
 	$(VENV) -m pip install -q --no-index --find-links $(WHEELS) --require-hashes -r $(LOCK)
 	rm -rf dist
-	$(VENV) scripts/build_release.py $(RELEASE) --score $(SCORE_REPO) --analyzer $(ANALYZER_REPO)
+	$(VENV) scripts/build_release.py $(RELEASE) $(SOURCE_ARGS)

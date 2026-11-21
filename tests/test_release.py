@@ -94,3 +94,56 @@ class EngineCheckout(unittest.TestCase):
             self.assertEqual((target / "engine.py").read_text(), "pinned = True\n")
             with self.assertRaises(subprocess.CalledProcessError):
                 build_release.checkout(repo.as_uri(), "0" * 40, Path(tmp, "unknown"))
+
+
+class EngineSources(unittest.TestCase):
+    def test_tool_directories_name_the_sources(self):
+        commit = "0123456789abcdef0123456789abcdef01234567"
+        adapter = (
+            '[project]\nname = "appsec-plugin-NAME"\nversion = "1"\n'
+            'dependencies = ["appsec-cli-core==1", "appsec-security-score==0.3.3"]\n'
+            "[tool.appsec-cli.source]\n"
+            'package = "appsec-security-score"\n'
+            'git = "https://git.example.com/tools.git"\n'
+            f'commit = "{commit}"\npath = "security-score"\n'
+        )
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+
+            def tool(name, text, kind="pyproject.toml"):
+                folder = root / "tools" / name
+                folder.mkdir(parents=True, exist_ok=True)
+                (folder / kind).write_text(text.replace("NAME", name))
+
+            tool("score", adapter)
+            tool("score-change", adapter)
+            tool("plain", '[project]\nname = "appsec-plugin-plain"\nversion = "1"\n')
+            tool("_draft", adapter.replace(commit, "main"))
+            tool(
+                "inventory",
+                'engine = "team-engine==1"\n[source]\n'
+                f'git = "https://git.example.com/engine.git"\ncommit = "{commit}"\n',
+                "tool.toml",
+            )
+            found = build_release.sources(root)
+            self.assertEqual(sorted(found), ["appsec-security-score", "team-engine"])
+            self.assertEqual(found["appsec-security-score"].path, "security-score")
+
+            mirror = build_release.sources(
+                root, ["appsec-security-score=/srv/mirror/tools"]
+            )
+            self.assertEqual(mirror["appsec-security-score"].git, "/srv/mirror/tools")
+            self.assertEqual(mirror["appsec-security-score"].commit, commit)
+            for pair in ("unknown=/srv/mirror", "appsec-security-score="):
+                with self.subTest(pair=pair), self.assertRaises(SystemExit):
+                    build_release.sources(root, [pair])
+
+            for text, message in (
+                (adapter.replace(commit, "f" * 40), "different source"),
+                (adapter.replace("==0.3.3", ">=0.3"), "pin"),
+                (adapter.replace(commit, "main"), "commit hash"),
+            ):
+                tool("score-change", text)
+                with self.subTest(message=message):
+                    with self.assertRaisesRegex(SystemExit, message):
+                        build_release.sources(root)

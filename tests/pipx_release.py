@@ -1,6 +1,7 @@
 """Exercise a real pipx upgrade against a temporary, exclusively local package index."""
 
 import argparse
+import importlib.util
 import json
 import os
 import shutil
@@ -10,6 +11,11 @@ import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+_spec = importlib.util.spec_from_file_location(
+    "build_release", ROOT / "scripts/build_release.py"
+)
+build_release = importlib.util.module_from_spec(_spec)
+_spec.loader.exec_module(build_release)
 HISTORIC_SCORE = "0294a9338caaf17d531bb222e86c353b81d60828"
 
 
@@ -19,10 +25,15 @@ def main():
         "--wheels", type=Path, required=True, help="External dependency wheels"
     )
     parser.add_argument(
-        "--score", required=True, help="Trusted appsec-tools Git URL or checkout"
+        "--source",
+        action="append",
+        default=[],
+        metavar="PACKAGE=URL",
+        help="Another trusted Git URL or checkout for an engine",
     )
     parser.add_argument("--release", type=Path, default=ROOT / "dist")
     args = parser.parse_args()
+    score = build_release.sources(overrides=args.source)["appsec-security-score"].git
     with tempfile.TemporaryDirectory(prefix="appsec-pipx-") as tmp:
         work = Path(tmp)
         index = work / "index"
@@ -80,8 +91,9 @@ def main():
             "clone",
             "--no-local",
             "--no-checkout",
+            "--",
             # Commands run in the temporary directory, so resolve a local path.
-            Path(args.score).resolve() if Path(args.score).exists() else args.score,
+            Path(score).resolve() if Path(score).exists() else score,
             checkout,
         )
         run(

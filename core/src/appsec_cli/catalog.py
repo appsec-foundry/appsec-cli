@@ -74,6 +74,12 @@ def collected():
 def discover(cfg):
     bundle = metadata.distribution("appsec-cli")
     tables = collected()
+    optional = {e.name for e in bundle.entry_points if e.group == "appsec_cli.optional"}
+
+    def off(name):
+        """Disabled by the team, or shipped turned off and not enabled by it."""
+        return name in cfg.disabled or (name in optional and name not in cfg.additional)
+
     names = {
         e.name for e in bundle.entry_points if e.group == "appsec_cli.bundle"
     } | cfg.additional
@@ -89,7 +95,7 @@ def discover(cfg):
             dist = metadata.distribution(package)
         except metadata.PackageNotFoundError:
             tools[name] = Tool(
-                name, package, "", "", "disabled" if name in cfg.disabled else "missing"
+                name, package, "", "", "disabled" if off(name) else "missing"
             )
             continue
         tool = Tool(
@@ -97,7 +103,7 @@ def discover(cfg):
             package,
             dist.version,
             dist.metadata.get("Summary", ""),
-            "disabled" if name in cfg.disabled else "unchecked",
+            "disabled" if off(name) else "unchecked",
         )
         for entry in dist.entry_points:
             if entry.group != "appsec_cli.tools":
@@ -132,7 +138,7 @@ def discover(cfg):
             )
         if name in tools and tools[name].status not in {"missing", "disabled"}:
             raise ToolError("plugin_conflict", f"Duplicate command name: {name}.")
-        status = "disabled" if name in cfg.disabled else "unchecked"
+        status = "disabled" if off(name) else "unchecked"
         summary, version, entry, examples = f"Run {name}.", "", None, ()
         if status != "disabled":
             from .manifest_command import ManifestEntry

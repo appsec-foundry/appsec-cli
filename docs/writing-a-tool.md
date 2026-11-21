@@ -2,7 +2,7 @@
 
 This guide is for the AppSec team that maintains the suite. Each tool is one directory in [tools/](../tools), and the directory name becomes the command. The release build finds every directory and pins its version; there is no list to maintain.
 
-[Choose an approach](#choose-an-approach) · [One-file tool](#one-file-tool) · [Python adapter](#python-adapter) · [Descriptions and examples](#descriptions-and-examples) · [Plugin interface](#plugin-interface) · [Test a tool](#test-a-tool) · [Versions and updates](#versions-and-updates)
+[Choose an approach](#choose-an-approach) · [One-file tool](#one-file-tool) · [Python adapter](#python-adapter) · [Engine sources](#engine-sources) · [Tools that are off by default](#tools-that-are-off-by-default) · [Descriptions and examples](#descriptions-and-examples) · [Plugin interface](#plugin-interface) · [Test a tool](#test-a-tool) · [Versions and updates](#versions-and-updates)
 
 ## Choose an approach
 
@@ -37,6 +37,8 @@ After the next suite release, teams run `appsec-cli repo-inventory .`. The build
 | `binary` | No | The console script to start if the package has several. Default: its only console script, or the one named like the package. |
 | `description` | No | One line for the tool list and the help. |
 | `examples` | No | Example calls for the start page and the help. See [Descriptions and examples](#descriptions-and-examples). |
+| `enabled` | No | `false` ships the tool turned off. See [Tools that are off by default](#tools-that-are-off-by-default). |
+| `source` | No | The Git repository and commit the release builds the engine from. See [Engine sources](#engine-sources). |
 
 - The engine must exit with 0 and print one JSON object on stdout. appsec-cli shows it unchanged under `data`.
 - Any other exit code ends the run with `tool_failed` and exit code 3.
@@ -61,9 +63,60 @@ The build stops when the package name does not match the directory. `appsec-cli 
 
 The template has one command that returns data and findings. For a tool with several commands, register one entry point per command, such as `"reports.summary"` and `"reports.export"`; teams then run `appsec-cli reports summary`.
 
-To wrap an engine, add it pinned to `dependencies`, for example `"appsec-security-score==0.3.3"`, and start its console script with `appsec_cli.external.ExternalTool` or `appsec_cli.external.invoke`. Adapt the argument list, the accepted exit codes, and the translation of the native output to your tool. The [security-score adapter](../tools/security-score/src/appsec_plugin_security_score/commands.py) shows this for a tool that also reports partial results.
+To wrap an engine, add it pinned to `dependencies`, for example `"appsec-security-score==0.3.3"`, and start its console script with `appsec_cli.external.ExternalTool` or `appsec_cli.external.invoke`. Adapt the argument list, the accepted exit codes, and the translation of the native output to your tool. The [security-score adapter](../tools/security-score/src/appsec_plugin_security_score/commands.py) shows this for a tool that also reports partial results. [Engine sources](#engine-sources) explains where the release build gets the engine.
 
 A tool written in another language can ship its executable as a resource in platform-specific wheels. The adapter resolves the resource from its installed package and starts it with `appsec_cli.external.invoke`. That function takes an argument list, uses no shell, and enforces a time and an output limit. For offline runs and reproducible upgrades, put the engine or its client in the adapter's pinned dependencies.
+
+## Engine sources
+
+Every package of a release is pinned. An engine comes from one of two places:
+
+- **A Git source in the tool's directory.** The build clones the repository, checks out the commit, and builds the engine wheel from it.
+- **The lock file** [requirements-linux-py310.lock](../requirements-linux-py310.lock), for an engine published on PyPI. Add it with its wheel hash; `make release-check` audits it against PyPI.
+
+A `tool.toml` names the source in a `[source]` table. The package is its `engine`:
+
+```toml
+# tools/repo-inventory/tool.toml
+engine = "appsec-analyzer==0.1.0a0"
+args = ["repo-profile", "{repo}", "--json"]
+
+[source]
+git = "https://github.com/appsec-foundry/appsec-analyzer.git"
+commit = "165425abccc7ca9b3dddb04c8f7a080293b0023e"
+```
+
+An adapter names it in its `pyproject.toml`, together with the dependency it builds:
+
+```toml
+[tool.appsec-cli.source]
+package = "appsec-security-score"
+git = "https://github.com/appsec-foundry/appsec-tools.git"
+commit = "1c5a9b21d570c7c5650f80de3c7a1fdd43932d82"
+path = "security-score"
+```
+
+| Field | Required | Meaning |
+| --- | --- | --- |
+| `git` | Yes | The Git URL of the repository. |
+| `commit` | Yes | The full commit hash. The build does not accept a branch or tag, so it always builds the reviewed code. |
+| `path` | No | The directory of the engine's `pyproject.toml` in the repository. Default: `.` |
+| `package` | Adapters only | The dependency the source builds. `dependencies` must pin it with `==`. |
+
+- Tools that share an engine each name the same source. The build stops if two tools name different sources for one package.
+- The build runs the engine's packaging code. Name only repositories you trust.
+- To build from another Git server, such as an internal mirror, or from a local checkout without changing the tool, set `ENGINE_SOURCES` to `PACKAGE=URL` pairs, for example `make release-check ENGINE_SOURCES="appsec-security-score=/src/appsec-tools"`. The commit in the tool's directory still applies.
+
+## Tools that are off by default
+
+`enabled = false` in a `tool.toml`, or under `[tool.appsec-cli]` in an adapter's `pyproject.toml`, ships the tool with the release but leaves it off. `appsec-cli tools list --all` shows it as `disabled`. A team turns it on in its [user configuration](../README.md#configuration):
+
+```toml
+[plugins]
+additional = ["policy-check"]
+```
+
+`disabled` takes precedence, and a project configuration cannot turn a tool on.
 
 ## Descriptions and examples
 
@@ -156,6 +209,6 @@ Every tool has one version: the engine pin of a `tool.toml`, or the package vers
 2. **Adapter change:** raise the adapter version whenever anything in its directory changes. The same applies to the core in [core/](../core).
 3. **Release:** raise the suite version in [pyproject.toml](../pyproject.toml), release, and tag the commit as `v<version>`. Teams get the change with `appsec-cli update`, which lists the new versions.
 
-The release build stops when a package changed since the last `v*` tag without a new version. For the engines of the example setup, also update the commit in [scripts/build_release.py](../scripts/build_release.py).
+The release build stops when a package changed since the last `v*` tag without a new version. For an engine with a Git source, also update `commit` in its [source](#engine-sources).
 
 The offline adapter for AppSec Verifier contains no engine. It ships the report schema from Verifier commit `90fb9736af8911e0bb7e0d9b007328cfb86f9706` (Apache 2.0, license in the adapter). When the Verifier schema changes, update this file and check the exported fields against existing reports.

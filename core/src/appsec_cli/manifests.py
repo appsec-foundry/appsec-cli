@@ -6,7 +6,7 @@ installing the core.
 
 import re
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 try:
     import tomllib
@@ -14,10 +14,13 @@ except ImportError:
     import tomli as tomllib
 
 from packaging.requirements import Requirement
+from packaging.utils import canonicalize_name
 from packaging.version import Version
 
 NAME = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 RESERVED = {"tools", "schema", "update"}
+PACKAGE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?\Z")
+COMMIT = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?\Z")
 MAX_EXAMPLES = 5
 MAX_LINE = 100
 
@@ -83,6 +86,42 @@ def usage(name, table, commands):
     return found
 
 
+def enabled(value, prefix):
+    """Whether a release turns the tool on; false ships it for teams to enable."""
+    if not isinstance(value, bool):
+        raise ValueError(f"{prefix}: enabled is true or false")
+    return value
+
+
+@dataclass(frozen=True)
+class Source:
+    """The Git repository and commit the release build makes an engine wheel from."""
+
+    package: str
+    git: str
+    commit: str
+    path: str = "."
+
+
+def source(value, prefix, package=None):
+    """A checked source table. A tool.toml passes its engine; an adapter names it."""
+    keys = {"git", "commit", "path"} | ({"package"} if package is None else set())
+    if not isinstance(value, dict) or value.keys() - keys:
+        raise ValueError(f"{prefix}: a source takes {', '.join(sorted(keys))}")
+    package = value.get("package", package)
+    git, commit, path = value.get("git"), value.get("commit"), value.get("path", ".")
+    if not isinstance(package, str) or not PACKAGE.fullmatch(package):
+        raise ValueError(f"{prefix}: name the engine package the source builds")
+    if not line(git) or git.startswith("-"):
+        raise ValueError(f"{prefix}: give the source as a Git URL")
+    if not isinstance(commit, str) or not COMMIT.fullmatch(commit):
+        raise ValueError(f"{prefix}: pin the source to a full commit hash")
+    inside = line(path) and not PurePosixPath(path).is_absolute()
+    if not inside or ".." in PurePosixPath(path).parts:
+        raise ValueError(f"{prefix}: give the engine's path inside the repository")
+    return Source(canonicalize_name(package), git, commit, path)
+
+
 @dataclass(frozen=True)
 class Manifest:
     name: str
@@ -91,6 +130,8 @@ class Manifest:
     binary: str | None
     description: str
     examples: tuple = ()
+    enabled: bool = True
+    source: Source | None = None
 
     @property
     def version(self):
@@ -114,9 +155,12 @@ class Manifest:
             "binary",
             "description",
             "examples",
+            "enabled",
+            "source",
         } or not isinstance(doc.get("engine"), str):
             raise ValueError(
-                f"{name}: expected engine and optional args, binary, description or examples"
+                f"{name}: expected engine and optional args, binary, description,"
+                " examples, enabled or source"
             )
         engine = Requirement(doc["engine"])
         pins = list(engine.specifier)
@@ -144,4 +188,6 @@ class Manifest:
         if not isinstance(description, str) or not description.strip():
             raise ValueError(f"{name}: expected a description")
         found = tuple(examples(doc.get("examples"), name))
-        return cls(name, engine, tuple(args), binary, description, found)
+        on = enabled(doc.get("enabled", True), name)
+        built = source(doc["source"], name, engine.name) if "source" in doc else None
+        return cls(name, engine, tuple(args), binary, description, found, on, built)
