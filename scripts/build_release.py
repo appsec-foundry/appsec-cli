@@ -100,8 +100,14 @@ def main():
         help="Trusted appsec-analyzer Git checkout",
     )
     p.add_argument("--out", type=Path, default=ROOT / "dist")
+    p.add_argument(
+        "--release",
+        action="store_true",
+        help="Also stop when a version would not reach the teams (make release-check)",
+    )
     args = p.parse_args()
-    check_versions()
+    if args.release:
+        check_versions()
     target = args.out.resolve()
     target.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="appsec-build-") as tmp:

@@ -18,7 +18,7 @@ appsec-cli does not host a package index or run a service. Tools run locally on 
 
 ## Quick start
 
-These steps build the example setup and install it the way a development team would. You need Linux x86_64, Python 3.10, Git, [pipx](https://pipx.pypa.io/stable/), network access to PyPI, and read access to the appsec-foundry repositories.
+These steps build the example setup from source and install it with pipx. You need Linux x86_64, Python 3.10, Git, [pipx](https://pipx.pypa.io/stable/), network access to PyPI, and read access to the appsec-foundry repositories.
 
 1. **Get the sources.** The release build uses pinned commits of two engine repositories. Clone them next to this repository:
 
@@ -29,21 +29,15 @@ These steps build the example setup and install it the way a development team wo
    cd appsec-cli
    ```
 
-2. **Build and check the release:**
+2. **Build and install:**
 
    ```sh
-   make release-check
+   make install
    ```
 
-   This checks the pinned dependencies against PyPI, builds the eight wheels of the suite in `dist/`, runs the tests, and tests a real pipx install and upgrade. It creates `.venv/` and `.wheelhouse/` in the checkout. If the engine checkouts are elsewhere, pass `SCORE_REPO=` and `ANALYZER_REPO=`. See [Release and distribution](#release-and-distribution).
+   This downloads the pinned external dependencies with hash checking, builds the eight wheels of the suite in `dist/`, and installs them with pipx without a package index. `appsec-cli` is then on your `PATH`. After a `git pull`, run `make install` again. If the engine checkouts are elsewhere, pass `SCORE_REPO=` and `ANALYZER_REPO=`.
 
-3. **Install the suite** from the local wheels, as a development team would install it from your package index:
-
-   ```sh
-   PIP_NO_INDEX=1 PIP_FIND_LINKS="$PWD/dist $PWD/.wheelhouse" pipx install appsec-cli
-   ```
-
-4. **Try it:**
+3. **Try it:**
 
    ```sh
    appsec-cli                              # tools and usage
@@ -51,7 +45,7 @@ These steps build the example setup and install it the way a development team wo
    appsec-cli security-score /path/to/app  # score a repository
    ```
 
-5. **Hand it to your development teams.** Publish the wheels from `dist/` and `.wheelhouse/` in your team package index. Development teams then install and update with:
+4. **Hand it to your development teams.** Check the release with `make release-check`, then publish the wheels from `dist/` and `.wheelhouse/` in your team package index. Development teams then install and update with:
 
    ```sh
    pipx install appsec-cli
@@ -263,6 +257,8 @@ make release-check SCORE_REPO=/path/to/appsec-tools ANALYZER_REPO=/path/to/appse
 The build runs the packaging code of the engine checkouts, so use trusted checkouts. To build without the checks in a prepared build environment, run `python3 scripts/build_release.py --score /path/to/appsec-tools --analyzer /path/to/appsec-analyzer`.
 
 **Distribute** the wheels from `dist/` and `.wheelhouse/` through your team package index. `appsec-cli update` then updates all tools together and installs tools added since the last release. A command removed from the release disappears, even when pip leaves its old wheel in the environment.
+
+The package names are not registered on PyPI. Configure your index as pip's only source (`index-url`), not as an additional one (`extra-index-url`): otherwise pip could install a package of the same name that someone else publishes on PyPI.
 
 **Versions.** The suite has one version in [pyproject.toml](pyproject.toml); each tool has its own: the engine pin of a `tool.toml`, or the package version of an adapter. pip only installs a package again when its version changes, so:
 
