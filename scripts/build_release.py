@@ -70,6 +70,36 @@ def check_versions(root=ROOT):
         )
 
 
+def checkout(source, commit, target):
+    """Clone a Git URL or local repository and check out the pinned commit."""
+    subprocess.run(
+        [
+            "git",
+            "-c",
+            "core.hooksPath=/dev/null",
+            "clone",
+            "--no-local",
+            "--no-checkout",
+            source,
+            str(target),
+        ],
+        check=True,
+    )
+    subprocess.run(
+        [
+            "git",
+            "-C",
+            str(target),
+            "-c",
+            "core.hooksPath=/dev/null",
+            "checkout",
+            "--detach",
+            commit,
+        ],
+        check=True,
+    )
+
+
 def build(project, target):
     subprocess.run(
         [
@@ -91,13 +121,12 @@ def build(project, target):
 def main():
     p = ArgumentParser(description=__doc__)
     p.add_argument(
-        "--score", type=Path, required=True, help="Trusted appsec-tools Git checkout"
+        "--score", required=True, help="Trusted appsec-tools Git URL or checkout"
     )
     p.add_argument(
         "--analyzer",
-        type=Path,
         required=True,
-        help="Trusted appsec-analyzer Git checkout",
+        help="Trusted appsec-analyzer Git URL or checkout",
     )
     p.add_argument("--out", type=Path, default=ROOT / "dist")
     p.add_argument(
@@ -112,34 +141,8 @@ def main():
     target.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix="appsec-build-") as tmp:
         for name, commit, folder in SOURCES:
-            checkout = Path(tmp, name)
-            subprocess.run(
-                [
-                    "git",
-                    "-c",
-                    "core.hooksPath=/dev/null",
-                    "clone",
-                    "--no-local",
-                    "--no-checkout",
-                    str(getattr(args, name).resolve()),
-                    str(checkout),
-                ],
-                check=True,
-            )
-            subprocess.run(
-                [
-                    "git",
-                    "-C",
-                    str(checkout),
-                    "-c",
-                    "core.hooksPath=/dev/null",
-                    "checkout",
-                    "--detach",
-                    commit,
-                ],
-                check=True,
-            )
-            build(checkout / folder, target)
+            checkout(getattr(args, name), commit, Path(tmp, name))
+            build(Path(tmp, name, folder), target)
     for project in [ROOT / "core", *adapters(), ROOT]:
         build(project, target)
     # An index may contain multiple releases. Freeze only this build's outputs.

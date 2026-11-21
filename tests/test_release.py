@@ -56,3 +56,41 @@ class ReleaseVersions(unittest.TestCase):
                 build_release.check_versions(root)
             project(root / "tools/score", "1.0.1")
             build_release.check_versions(root)
+
+
+class EngineCheckout(unittest.TestCase):
+    def test_checks_out_the_pinned_commit_from_a_git_url(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            repo = Path(tmp, "engine")
+            repo.mkdir()
+
+            def git(*args):
+                return subprocess.run(
+                    [
+                        "git",
+                        "-C",
+                        str(repo),
+                        "-c",
+                        "user.name=t",
+                        "-c",
+                        "user.email=t@example.invalid",
+                        *args,
+                    ],
+                    check=True,
+                    capture_output=True,
+                    text=True,
+                ).stdout.strip()
+
+            git("init", "-q")
+            (repo / "engine.py").write_text("pinned = True\n")
+            git("add", ".")
+            git("commit", "-qm", "pinned")
+            pinned = git("rev-parse", "HEAD")
+            (repo / "engine.py").write_text("pinned = False\n")
+            git("commit", "-qam", "later")
+
+            target = Path(tmp, "checkout")
+            build_release.checkout(repo.as_uri(), pinned, target)
+            self.assertEqual((target / "engine.py").read_text(), "pinned = True\n")
+            with self.assertRaises(subprocess.CalledProcessError):
+                build_release.checkout(repo.as_uri(), "0" * 40, Path(tmp, "unknown"))

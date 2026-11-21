@@ -19,7 +19,7 @@ def main():
         "--wheels", type=Path, required=True, help="External dependency wheels"
     )
     parser.add_argument(
-        "--score", type=Path, required=True, help="Trusted appsec-tools checkout"
+        "--score", required=True, help="Trusted appsec-tools Git URL or checkout"
     )
     parser.add_argument("--release", type=Path, default=ROOT / "dist")
     args = parser.parse_args()
@@ -80,7 +80,8 @@ def main():
             "clone",
             "--no-local",
             "--no-checkout",
-            args.score.resolve(),
+            # Commands run in the temporary directory, so resolve a local path.
+            Path(args.score).resolve() if Path(args.score).exists() else args.score,
             checkout,
         )
         run(

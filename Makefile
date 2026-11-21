@@ -1,6 +1,7 @@
 PYTHON ?= python3
-SCORE_REPO ?= ../appsec-tools
-ANALYZER_REPO ?= ../appsec-analyzer
+# Git URL or local checkout of each engine; the build checks out the pinned commit.
+SCORE_REPO ?= https://github.com/appsec-foundry/appsec-tools.git
+ANALYZER_REPO ?= https://github.com/appsec-foundry/appsec-analyzer.git
 WHEELS ?= .wheelhouse
 VENV := .venv/bin/python
 LOCK := requirements-linux-py310.lock
