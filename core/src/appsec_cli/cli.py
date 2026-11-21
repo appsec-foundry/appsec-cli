@@ -246,14 +246,11 @@ def finish(ctx, result, **params):
     if not isinstance(result, Result):
         raise ToolError("invalid_result", "The plugin returned an invalid result.")
     cfg, _ = state(ctx)
-    fail = threshold(
-        params["fail_on"]
-        or os.getenv("APPSEC_CLI_FAIL_ON")
-        or cfg.thresholds.get(tool.name)
-        or cfg.fail_on
-        or spec.fail_on
-        or "low"
-    )
+    explicit = params["fail_on"] or os.getenv("APPSEC_CLI_FAIL_ON")
+    if explicit:
+        fail, ignored = threshold(explicit), False
+    else:
+        fail, ignored = cfg.threshold_for(tool.name, spec.fail_on)
     run = {
         "cli_version": version("appsec-cli"),
         "tool_version": version(spec.engine_distribution)
@@ -266,6 +263,14 @@ def finish(ctx, result, **params):
     report, code = finalize(
         result, tool.name, spec, run, fail, params["min_severity"], params["limit"]
     )
+    if ignored:
+        report.setdefault("diagnostics", []).append(
+            {
+                "level": "warning",
+                "code": "config_threshold_ignored",
+                "message": f".appsec-cli.toml cannot lower the threshold; {fail} applies.",
+            }
+        )
     if params["format"] == "json":
         value = report
     elif params["format"] == "sarif":

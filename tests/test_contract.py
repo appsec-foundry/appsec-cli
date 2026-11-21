@@ -107,6 +107,50 @@ class Contracts(unittest.TestCase):
             with self.assertRaises(ToolError):
                 settings(path)
 
+    def test_project_file_only_tightens(self):
+        cwd = os.getcwd()
+        self.addCleanup(os.chdir, cwd)
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            user = Path(tmp, "appsec-cli/config.toml")
+            user.parent.mkdir()
+            local = Path(tmp, ".appsec-cli.toml")
+
+            def threshold(user_text, local_text, tool_default=None):
+                user.write_text(user_text)
+                local.write_text(local_text)
+                with patch.dict(os.environ, {"XDG_CONFIG_HOME": tmp}):
+                    return settings().threshold_for("score", tool_default)
+
+            self.assertEqual(
+                threshold('fail_on = "high"', 'fail_on = "never"'), ("high", True)
+            )
+            self.assertEqual(
+                threshold('fail_on = "high"', 'fail_on = "medium"'), ("medium", False)
+            )
+            self.assertEqual(threshold("", 'fail_on = "never"'), ("low", True))
+            self.assertEqual(
+                threshold("", '[tools.score]\nfail_on = "high"', "never"),
+                ("high", False),
+            )
+            self.assertEqual(
+                threshold('[tools.score]\nfail_on = "medium"', 'fail_on = "critical"'),
+                ("medium", True),
+            )
+            self.assertEqual(threshold('fail_on = "high"', ""), ("high", False))
+            trusted = Path(tmp, "trusted.toml")
+            trusted.write_text('fail_on = "never"')
+            with patch.dict(os.environ, {"XDG_CONFIG_HOME": tmp}):
+                self.assertEqual(
+                    settings(trusted).threshold_for("score", None), ("never", False)
+                )
+            local.write_text('[tools."*"]\nfail_on = "never"')
+            with (
+                patch.dict(os.environ, {"XDG_CONFIG_HOME": tmp}),
+                self.assertRaises(ToolError),
+            ):
+                settings()
+
     def test_score_status(self):
         gap = {"area": "coverage", "status": "unclear"}
         nested = {"area": "coverage", "status": "satisfied", "locations": [gap]}

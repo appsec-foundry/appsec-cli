@@ -166,7 +166,7 @@ appsec-cli --format json --output report.json --fail-on high security-score .
 
 The exit code of this command is the job status. Save `report.json` as a job artifact in a step that also runs after a failure.
 
-- **Set the threshold on the command line or with `--config`.** A `.appsec-cli.toml` in the working directory may set `fail_on`, and it overrides the runner's user configuration. In a pull request, the author controls that file and could lower the threshold. `--fail-on` and `--config FILE` take precedence over it.
+- **The working directory cannot lower the threshold.** A `.appsec-cli.toml` there may come from the change under review. It can make the threshold stricter, but a looser value is ignored and reported as `config_threshold_ignored`. `--fail-on` and `--config FILE` set the threshold explicitly.
 - **For pull requests from forks,** pass a configuration from the trusted target branch, for example `--config /runner/trusted/appsec.toml`.
 - **Exit code 3 means the check is incomplete or failed.** `security-score` reports `partial` when the engine could not cover all selected source, for example code in a language it does not read. A rating limited only by missing evidence of good controls is a complete run; the report notes it with the diagnostic `limited_evidence`. `analyze-threats` reports `partial` when it omitted source files or the model lists open questions. Read `status` and `diagnostics` to tell the cases apart.
 - **Findings set the exit code, not the score.** A low score or the rating `Not assessed` alone ends with 0. To require a minimum score, check `data.score` or `data.rating` in the report.
@@ -278,7 +278,8 @@ To add an official tool, add its directory and raise the suite version. To updat
 | File | Location | Can set |
 | --- | --- | --- |
 | User configuration | `$XDG_CONFIG_HOME/appsec-cli/config.toml`, otherwise `~/.config/appsec-cli/config.toml` | Thresholds and the tool selection under `[plugins]` |
-| Project configuration | `.appsec-cli.toml` in the current working directory, or the file passed with `--config` | Thresholds only |
+| Chosen configuration | The file passed with `--config` | Thresholds; overrides the user configuration key by key |
+| Project configuration | `.appsec-cli.toml` in the current working directory, when no `--config` is given | Stricter thresholds only |
 
 ```toml
 fail_on = "high"                 # default threshold
@@ -291,7 +292,7 @@ disabled = ["appsec-verifier"]   # hide official tools
 additional = ["team-inventory"]  # enable the separately installed appsec-plugin-team-inventory
 ```
 
-The threshold comes from the first of these that is set: `--fail-on`, `APPSEC_CLI_FAIL_ON`, a `[tools.<name>]` entry, `fail_on`, the tool's own default, `low`. When both files set the same key, the project configuration wins.
+The threshold comes from the first of these that is set: `--fail-on`, `APPSEC_CLI_FAIL_ON`, a `[tools.<name>]` entry, `fail_on`, the tool's own default, `low`. A project configuration may then only raise it, for example from `high` to `medium`; it cannot lower it or turn it off.
 
 A project configuration with any other key, such as `[plugins]`, an endpoint, or a path, stops the run with `config_forbidden_key`. A file passed with `--config` must exist. Configuration files never hold credentials; those come from the provider login or environment variables.
 
