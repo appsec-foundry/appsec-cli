@@ -1,12 +1,12 @@
 # Umsetzungsplan appsec-cli
 
-Stand 21.11.2026 · Suite 0.1.0 ist lokal als Wheel-Satz gebaut. Installation, Upgrade, Pluginwechsel und Aufrufe der paketierten Engines wurden unter Linux mit pipx geprüft. Der Einstieg steht im [README](../README.md). Die Phasen weiter unten dokumentieren die ursprünglichen Abnahmekriterien.
+Stand 21.11.2026 · Suite 0.1.0 ist lokal als Wheel-Satz gebaut. Installation, Upgrade mit `appsec-cli update`, Pluginwechsel und Aufrufe der paketierten Engines wurden unter Linux mit pipx geprüft. Der Einstieg steht im [README](../README.md). Die Phasen weiter unten dokumentieren die ursprünglichen Abnahmekriterien. Wo die Umsetzung davon abweicht, steht es direkt vor den Phasen.
 
 Der pipx-Upgrade-Test hat die echte Score-Engine von 0.3.2 auf 0.3.3 aktualisiert und dabei eine Deaktivierung erhalten. Der Offline-Verifier hat einen vorhandenen Bericht mit 69 Annotationen verarbeitet. Eine Finding-Ausgabe wurde gegen das offizielle SARIF-2.1.0-Schema validiert. Bei den Offline-Installationstests wurden drei externe Python-Wheels aus den installierten, mit RECORD abgeglichenen Dateien rekonstruiert. Das Release-Lock verwendet die Hashes der Original-Wheels.
 
-Für JSON-Tools reicht im Suite-Repository eine Datei `modules/<name>/tool.toml`. Der Build übernimmt den Engine-Pin und registriert den Verzeichnisnamen als Befehl. Individuelle Python-Adapter stehen für abweichende Ausgabeformate und Finding-Regeln bereit.
+Jedes Tool ist ein Verzeichnis unter `tools/`. Für ein Tool mit JSON-Ausgabe reicht eine Datei `tools/<name>/tool.toml`. Ein Verzeichnis mit `pyproject.toml` ist ein Python-Adapter für eigene Ausgabeformate und Finding-Regeln; neue Adapter entstehen als Kopie von `tools/_template`. Der Build findet beide Arten, übernimmt Engine-Pin bzw. Adapterversion und registriert den Verzeichnisnamen als Befehl.
 
-Die Release-Auswahl steckt in den Paketmetadaten der Suite. Der Kern liest Befehlsnamen ohne Plugin-Import und lädt den Handler erst für Aufruf oder Detailansicht. Die Terminaloberfläche orientiert sich am AppSec Verifier. Die Adapter nutzen die paketierten Engines oder beim Verifier das Berichtsformat. Beim Threat-Review steuert der Adapter Quellauswahl und Analysevertrag und nutzt die Host-Transporte des Analyzers sowie HTTP für die API-Profile.
+Die Release-Auswahl ergibt sich aus den Verzeichnissen unter `tools/` und steht in den Paketmetadaten der Suite. Der Kern liest Befehlsnamen ohne Plugin-Import und lädt den Handler erst für Aufruf oder Detailansicht. Im Terminal zeigt appsec-cli nur eine Kopf- und eine Ergebniszeile; den Inhalt dazwischen liefert das jeweilige Tool. Farbe gibt es nur für Status und Severity, mit den Werten der Palette des AppSec Analyzer. Die Adapter nutzen die paketierten Engines oder beim Verifier das Berichtsformat. Beim Threat-Review steuert der Adapter Quellauswahl und Analysevertrag und nutzt die Host-Transporte des Analyzers sowie HTTP für die API-Profile.
 
 ## Ziel
 
@@ -16,7 +16,7 @@ Die Release-Auswahl steckt in den Paketmetadaten der Suite. Der Kern liest Befeh
 - andere Teams, lokal und in CI-Pipelines,
 - Skills und andere Automatisierung, die die CLI aufrufen und die JSON-Ausgabe lesen.
 
-Das Team ergänzt einen Befehl über einen Handler oder Wrapper und einen Paket-Eintrag. Die Kern-CLI bleibt dabei unverändert. Dev-Teams können denselben Befehl im Terminal, aus einer eigenen CLI oder in einer CI-Pipeline als Prozess aufrufen. Skills entdecken die installierten Befehle und lesen ihre Ergebnisse als JSON.
+Das AppSec-Team ergänzt einen Befehl über ein neues Verzeichnis unter `tools/`. Die Kern-CLI bleibt dabei unverändert. Dev-Teams können denselben Befehl im Terminal, aus einer eigenen CLI oder in einer CI-Pipeline als Prozess aufrufen. Skills entdecken die installierten Befehle und lesen ihre Ergebnisse als JSON.
 
 ### Beispiel für die Nutzung
 
@@ -57,24 +57,34 @@ Standardmäßig sind die offiziellen Plugins des installierten Releases aktiv. T
 disabled = ["appsec-verifier"]
 ```
 
-Eine leere Liste aktiviert wieder alle offiziellen Plugins. Entfernt ein Team einen einzelnen Namen, aktiviert es nur dieses Tool wieder. Die Einstellung bleibt bei Upgrades erhalten. `tools list --all` zeigt auch deaktivierte Plugins samt Status. Die normale Hilfe und JSON-Liste zeigen die aktiven Tools. Vor Beschreibung, Unterbefehl, direktem Aufruf oder Ladeprüfung wertet der Kern dieselbe Auswahl aus. Der direkte Aufruf eines deaktivierten Tools endet vor dem Import mit Exit 2 und `tool_disabled`. Ein Projekt kann diese Auswahl nicht überschreiben. Die Kernbefehle für Hilfe, Liste und Schema bleiben immer erreichbar. Die Deaktivierung gilt für den öffentlichen Suite-Befehl; gemeinsam genutzte Bibliotheken können anderen aktiven Plugins weiterhin als Abhängigkeit dienen.
+Eine leere Liste aktiviert wieder alle offiziellen Plugins. Entfernt ein Team einen einzelnen Namen, aktiviert es nur dieses Tool wieder. Die Einstellung bleibt bei Upgrades erhalten. `tools list --all` zeigt auch deaktivierte Plugins samt Status. Die normale Hilfe und JSON-Liste zeigen die aktiven Tools. Vor Beschreibung, Unterbefehl, direktem Aufruf oder Ladeprüfung wertet der Kern dieselbe Auswahl aus. Der direkte Aufruf eines deaktivierten Tools endet vor dem Import mit Exit 2 und dem Hinweis auf `tools list --all`. Ein Projekt kann diese Auswahl nicht überschreiben. Die Kernbefehle für Hilfe, Liste und Schema bleiben immer erreichbar. Die Deaktivierung gilt für den öffentlichen Suite-Befehl; gemeinsam genutzte Bibliotheken können anderen aktiven Plugins weiterhin als Abhängigkeit dienen.
 
 ### Befehle entdecken
 
-`appsec-cli` ohne Argumente und `appsec-cli --help` zeigen die aktivierten Tools mit Kurzbeschreibung sowie die Kernbefehle für Hilfe, Schema und Tool-Details. `appsec-cli tools list` zeigt auch die Aufrufpfade vorhandener Unterbefehle. Ein Tool mit genau einem Befehl erscheint einmal. Die Übersicht ist alphabetisch sortiert und funktioniert ohne Anmeldung oder Modellaufruf.
+`appsec-cli` ohne Argumente zeigt nach zwei Zeilen Einleitung die aktivierten Tools mit Kurzbeschreibung und Unterbefehlen sowie die Kernbefehle. `appsec-cli --help` ergänzt die globalen Optionen. `appsec-cli tools list` zeigt zusätzlich die Version jedes Tools. Ein Tool mit genau einem Befehl erscheint einmal. Die Übersicht ist alphabetisch sortiert und funktioniert ohne Anmeldung oder Modellaufruf.
 
 ```text
-Tools
-  analyze-threats   Bedrohungen für einen PR, einen Commit oder ein Repository bewerten
-  appsec-analyzer   Repository-Profil und Assessment-Export
-  appsec-verifier   Vorhandene Verifikationsergebnisse exportieren
-  security-score    Sicherheit eines Repositorys oder Relevanz einer Änderung bewerten
+appsec-cli 0.1.0
+Application security tools
 
-Weitere Befehle
-  tools list             Installierte Tools und Unterbefehle auflisten
-  tools describe <tool>  Argumente, Optionen und Ergebnisschema anzeigen
-  schema                 Gemeinsames JSON-Ergebnisschema ausgeben
+Usage: appsec-cli [OPTIONS] TOOL [COMMAND] [ARGS]
+
+Tools
+  analyze-threats      Review threats in a pull request, commit or repository.
+  appsec-analyzer      Inspect source repositories and export assessments.
+    appsec-analyzer export
+    appsec-analyzer repo-profile
+  appsec-verifier      Export results from completed verification reports.
+    appsec-verifier export
+  security-score       Score a repository or assess a change.
+
+Manage
+  tools list [--all]       Installed tools, versions and commands
+  tools describe TOOL      Arguments, output formats and data schema
+  schema                   Shared JSON result schema
 ```
+
+Bedienfehler enden mit Exit 2 und nennen auf stderr die Ursache und einen nächsten Schritt, etwa `Hint: Did you mean 'security-score'?` bei einem Tippfehler oder den Hinweis, eine globale Option vor den Toolnamen zu setzen.
 
 `appsec-cli analyze-threats --help` erklärt die Eingaben und zeigt Beispiele. Skills erhalten mit `appsec-cli --format json tools list` dieselben Namen, Beschreibungen und Aufrufpfade in strukturierter Form.
 
@@ -92,15 +102,15 @@ Die Analyse-Engine bestimmt Revision, Kontext und Bewertungsschema. Der gewählt
 
 | Thema | Entscheidung |
 |---|---|
-| Sprache | Python ab 3.10, CLI mit Typer |
+| Sprache | Python ab 3.10. Die CLI ist eine click-Gruppe; die Befehle der Tools erzeugt typer-slim aus den Signaturen der Handler. |
 | Tool-Integration | Jedes Tool ist ein Python-Plugin und meldet sich über die entry-point-Gruppe `appsec_cli.tools` an. Tools in anderen Sprachen bekommen einen dünnen Python-Wrapper auf Basis des `ExternalTool`-Helpers. |
-| Ablage | Alle fachlichen Befehle kommen aus separat paketierbaren Plugins, auch die offiziellen. Das Suite-Paket bündelt die ausgewählten Plugins als Abhängigkeiten. Externe Programme behalten ihren eigenen Releasezyklus. |
-| Installation und Updates | `pipx install appsec-cli` liefert alle offiziellen Befehle samt benötigten Tool-Paketen. `pipx upgrade appsec-cli` aktualisiert sie gemeinsam und installiert die seitdem hinzugekommenen offiziellen Tools. |
+| Ablage | Jedes Tool ist ein Verzeichnis unter `tools/`: eine `tool.toml` für ein JSON-Tool ohne Code oder ein eigenständig baubarer Python-Adapter. Das Suite-Paket nimmt alle Verzeichnisse als Abhängigkeiten auf. Externe Programme behalten ihren eigenen Releasezyklus. |
+| Installation und Updates | `pipx install appsec-cli` liefert alle offiziellen Befehle samt benötigten Tool-Paketen. `appsec-cli update` führt `pipx upgrade` aus, aktualisiert sie gemeinsam, installiert neu hinzugekommene Tools und zeigt die Änderungen. Der Release-Build verlangt für jedes geänderte Paket eine neue Version. |
 | Laden | Hilfe und `tools list` nutzen Entry-Point-Metadaten. Erst Aufruf und `tools describe <tool>` laden das ausgewählte Tool. |
 | Ergebnis | Gemeinsames Ergebnisschema v1 (siehe unten). Tools geben ein Ergebnisobjekt zurück und schreiben nicht selbst auf stdout. |
 | Exit-Codes | Berechnet der Kern: 0 ok, 1 Findings ab Schwelle, 2 Bedienfehler, 3 Lauf fehlgeschlagen oder unvollständig |
-| Ausgabe | Text für Menschen und JSON für Automatisierung unterstützen alle Befehle. SARIF exportiert Findings. Logs gehen auf stderr. |
-| Config | TOML in mehreren Ebenen, die Projekt-Config darf nur ausdrücklich erlaubte Schlüssel setzen |
+| Ausgabe | Text für Menschen und JSON für Automatisierung unterstützen alle Befehle. SARIF exportiert Findings. Logs gehen auf stderr. Im Terminal rahmt appsec-cli die Ansicht des Tools nur ein und färbt nur Status und Severity. |
+| Config | TOML in mehreren Ebenen. Die Projekt-Config im Arbeitsverzeichnis darf nur Schwellen setzen und diese nur verschärfen. |
 | KI-Tools | Host-Auswahl und Analysevertrag im zuständigen Adapter. Das Modell darf Alarm schlagen, aber nicht entwarnen. Antworten werden streng geprüft, eine ungültige Antwort ergibt `failed`. Endpoint und Key kommen nie aus dem gescannten Repo. |
 
 ## Entscheidungen und offene Abnahmen
@@ -171,15 +181,15 @@ Hier erhält CI den berechneten Wert auch bei Exit 0. Eine Mindestpunktzahl kann
 | `status` ist `ok`, sonst | 0 |
 | falsche Optionen oder Argumente | 2 (Standard von Click) |
 
-Für `--fail-on` gilt diese Reihenfolge: CLI-Option, dann Config, dann der Standard des Tools (bei KI-Tools `never`), dann der globale Standard `low`.
+Für `--fail-on` gilt diese Reihenfolge: CLI-Option, `APPSEC_CLI_FAIL_ON`, Benutzer-Config oder `--config`, dann der Standard des Tools (bei KI-Tools `never`), dann der globale Standard `low`. Eine `.appsec-cli.toml` im Arbeitsverzeichnis darf das Ergebnis nur verschärfen. Einen lockereren Wert ignoriert der Kern und meldet `config_threshold_ignored`.
 
 ## Aufbau des Repos
 
 | Ort | Inhalt |
 |---|---|
-| `pyproject.toml`, `src/appsec_suite/` | Installationspaket, Version und Auswahl der offiziellen Plugins |
-| `core/src/appsec_cli/` | Discovery, Konfiguration, Terminal, Ergebnisvertrag und Prozessaufrufe |
-| `plugins/` | Vier eigenständig baubare Adapter |
+| `pyproject.toml`, `setup.py`, `src/appsec_suite/` | Installationspaket und Version; der Build nimmt jedes Verzeichnis unter `tools/` auf |
+| `core/src/appsec_cli/` | Discovery, Konfiguration, Terminal, Ergebnisvertrag, Format der `tool.toml` und Prozessaufrufe |
+| `tools/` | Ein Verzeichnis pro Befehl: die vier Adapter des Beispiel-Setups und die Vorlage `_template` |
 | `skills/appsec-cli/` | Mitgelieferter Nutzungsskill |
 | `scripts/`, `tests/` | Build, Abhängigkeitsprüfung, Vertrags- und Installationstests |
 
@@ -205,9 +215,9 @@ Für native Standardtools ohne Python-Paket kann der Herausgeber je unterstützt
 |---|---|---|
 | Erste Installation | `pipx install appsec-cli` | pipx installiert CLI und Standardtools aus dem konfigurierten Index in eine eigene Umgebung. |
 | Erster Lauf | `appsec-cli security-score .` | Funktioniert für ein lokales Repository direkt nach der Installation. |
-| Alle offiziellen Tools aktualisieren | `pipx upgrade appsec-cli` | Installiert den neuen CLI-Release, die dafür freigegebenen Toolversionen und jedes neu ins Paket aufgenommene Tool. |
+| Alle offiziellen Tools aktualisieren | `appsec-cli update` | Führt `pipx upgrade appsec-cli` aus. Installiert den neuen CLI-Release, die dafür freigegebenen Toolversionen und jedes neu ins Paket aufgenommene Tool und listet die Änderungen. |
 
-Welche Tools offiziell dazugehören, pflegt das AppSec-Team in den Paketmetadaten von `appsec-cli`. Das gilt auch für Tools aus anderen Repositories. Bei einem neuen offiziellen Tool nimmt das AppSec-Team dessen Paket und ggf. das separate Adapterpaket als reguläre Abhängigkeiten in den nächsten CLI-Release auf. Dev-Teams, CI und Skills folgen derselben Aktivierung. Separat ergänzte Team-Plugins werden in der vertrauenswürdigen Konfiguration über `[plugins].additional` ausdrücklich ausgewählt. Bei der Discovery kommen nur Einträge aus der aktuellen Release-Auswahl oder dieser zusätzlichen Auswahl in Betracht; `disabled` hat Vorrang. So taucht ein zurückgezogenes offizielles Plugin nach dem Upgrade auch dann nicht von selbst wieder auf, wenn sein Wheel noch installiert ist.
+Welche Tools offiziell dazugehören, ergibt sich aus den Verzeichnissen unter `tools/`; der Build schreibt sie in die Paketmetadaten von `appsec-cli`. Das gilt auch für Tools aus anderen Repositories. Für ein neues offizielles Tool legt das AppSec-Team ein Verzeichnis an. Engine und Adapter werden damit reguläre Abhängigkeiten des nächsten CLI-Release. Dev-Teams, CI und Skills folgen derselben Aktivierung. Separat ergänzte Team-Plugins werden in der vertrauenswürdigen Konfiguration über `[plugins].additional` ausdrücklich ausgewählt. Bei der Discovery kommen nur Einträge aus der aktuellen Release-Auswahl oder dieser zusätzlichen Auswahl in Betracht; `disabled` hat Vorrang. So taucht ein zurückgezogenes offizielles Plugin nach dem Upgrade auch dann nicht von selbst wieder auf, wenn sein Wheel noch installiert ist.
 
 Der kurze Installationsbefehl setzt voraus, dass der Paketname im gewählten Index dem Team gehört und alle benötigten Pakete darüber auflösbar sind. Für einen internen Index wird der Zugriff einmalig auf Rechnern und Runnern eingerichtet. Benötigt `analyze-threats` eine lokale Engine, stellt die Standardinstallation diese bereit. Eine Anmeldung an einem externen Dienst kann weiterhin erforderlich sein. [pipx – Installation und Updates](https://pipx.pypa.io/stable/reference/cli.html)
 
@@ -227,9 +237,11 @@ Für ein eigenständiges Plugin läuft derselbe Vertragstest in dessen Repositor
 
 ### Registrierung
 
-Jeder Entry Point verweist auf eine mit `@command` dekorierte Funktion. Das Paket `appsec-plugin-inventory` registriert z. B. `inventory` oder mehrere Operationen wie `inventory.list` und `inventory.export`. Der Kern liest diese Namen aus den installierten Wheel-Metadaten. `tools describe` erzeugt Parameter und Datenschema aus dem tatsächlich geladenen Handler. Der Generator unterstützt Daten, Findings, Befehlsgruppen und externe Programme. [Vollständiges Beispiel und Paketierung](writing-a-tool.md)
+Jeder Entry Point verweist auf eine mit `@command` dekorierte Funktion. Das Paket `appsec-plugin-inventory` registriert z. B. `inventory` oder mehrere Operationen wie `inventory.list` und `inventory.export`. Der Kern liest diese Namen aus den installierten Wheel-Metadaten. `tools describe` erzeugt Parameter und Datenschema aus dem tatsächlich geladenen Handler. Neue Adapter entstehen als Kopie von `tools/_template`. [Vollständiges Beispiel und Paketierung](writing-a-tool.md)
 
 ## Ursprüngliche Phasen und Abnahmekriterien
+
+Die Umsetzung weicht in vier Punkten von den Phasen ab. Die Tools liegen unter `tools/` statt unter `plugins/` und `modules/`. Statt eines Generators gibt es die Vorlage `tools/_template`. Das Lazy Loading übernimmt eine click-Gruppe statt einer eigenen TyperGroup. Die Projekt-Config kann Schwellen nur verschärfen, damit gilt die Abnahme aus Phase 3 auch ohne `--config`.
 
 ### Phase 0: Projektgrundlage
 
@@ -330,7 +342,7 @@ Fertig, wenn jemand aus dem Team ohne Hilfe ein drittes Tool nach der Anleitung 
 
 ## Risiken
 
-- Lazy Loading braucht eine eigene TyperGroup und hängt damit an Typer-Interna. Die Typer-Version wird auf einen engen Bereich festgelegt und durch Tests abgesichert.
+- Lazy Loading hängt an einer eigenen click-Gruppe; Typer erzeugt nur die Befehle der Tools. click und typer-slim sind exakt gepinnt und durch Tests abgesichert.
 - Nach dem Hinzufügen eines entry points muss das Paket neu installiert werden (`pip install -e .`). Das steht in der Anleitung für Tool-Autoren.
 - KI-Tools kosten Geld und antworten nicht deterministisch. Automatische Tests laufen deshalb nur gegen einen Fake-Client, Tests gegen den echten Anbieter laufen manuell oder nur, wenn man sie ausdrücklich einschaltet.
 - Ein eigenes Schema muss gepflegt werden. Contract-Test und Versionsregeln sollen verhindern, dass es unbemerkt auseinanderläuft.
