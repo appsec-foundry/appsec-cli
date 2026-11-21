@@ -1,6 +1,6 @@
 import unittest
 
-from appsec_cli.ui import Style, changes, overview, table
+from appsec_cli.ui import Style, changes, header, overview, table
 
 PLAIN = Style(False)
 REPORT = {
@@ -44,6 +44,17 @@ class ResultView(unittest.TestCase):
         self.assertIn("(limited_evidence)", table(REPORT, PLAIN, code=1, verbose=True))
         passed = table(REPORT, PLAIN, threshold="critical", code=0)
         self.assertTrue(passed.endswith("✓ No finding at or above critical (exit 0)"))
+
+    def test_header_revision(self):
+        result = {**REPORT, "target": {"path": "/repo", "revision": "ba7136f0c1d2e3f4"}}
+        self.assertEqual(
+            header(result, PLAIN),
+            "appsec-cli › security-score 0.3.3 · /repo @ ba7136f0c1d2",
+        )
+        result = {**REPORT, "target": {"revision": "ba7136f0c1d2"}}
+        self.assertEqual(
+            header(result, PLAIN), "appsec-cli › security-score 0.3.3 · ba7136f0c1d2"
+        )
 
     def test_filtered_and_empty_findings(self):
         shown = {**REPORT, "findings": REPORT["findings"][:1]}

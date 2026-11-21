@@ -180,11 +180,12 @@ def header(result, style):
     version = result.get("run", {}).get("tool_version")
     target = result.get("target") or {}
     parts = [f"{tool} {clean(version)}" if version else tool]
-    where = target.get("url") or target.get("path")
-    if where:
-        parts.append(clean(where))
+    where = clean(target.get("url") or target.get("path") or "")
     if target.get("revision"):
-        parts.append(clean(target["revision"])[:12])
+        revision = clean(target["revision"])[:12]
+        where = f"{where} @ {revision}" if where else revision
+    if where:
+        parts.append(where)
     return style("appsec-cli › " + " · ".join(parts), "muted")
 
 
