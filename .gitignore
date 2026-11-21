@@ -1,0 +1,11 @@
+__pycache__/
+*.egg-info/
+build/
+dist/
+.wheelhouse/
+.venv/
+.pytest_cache/
+.ruff_cache/
+docs/security/.active-tool-calls/
+docs/security/.assessment-summary-emitted
+docs/security/.hook-events.log

@@ -1,0 +1,4 @@
+interface:
+  display_name: "AppSec CLI"
+  short_description: "AppSec-Tools entdecken und strukturierte Ergebnisse auswerten"
+  default_prompt: "Nutze $appsec-cli für die angeforderte AppSec-Prüfung."

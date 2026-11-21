@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "appsec-plugin-appsec-verifier"
+version = "0.1.0"
+requires-python = ">=3.10"
+description = "Export results from completed verification reports."
+dependencies = ["appsec-cli-core==0.1.0", "PyYAML>=6.0.3,<7", "jsonschema>=4.26,<5"]
+
+[project.entry-points."appsec_cli.tools"]
+"appsec-verifier.export" = "appsec_plugin_appsec_verifier.commands:export"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+appsec_plugin_appsec_verifier = ["verification.schema.yaml"]

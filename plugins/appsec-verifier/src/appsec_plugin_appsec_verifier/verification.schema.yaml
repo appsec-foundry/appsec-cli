@@ -1,0 +1,621 @@
+$schema: https://json-schema.org/draft/2020-12/schema
+$id: https://appsec-verifier/schemas/verification.schema.yaml
+title: Dynamic verification report
+description: |
+  Output written to `$OUTPUT_DIR/verification.yaml` by `appsec-verifier verify`.
+  It records the result of actively testing the findings of a
+  `appsec-assessment.yaml` against a running target. Every result is keyed to
+  exactly one source finding by id and fingerprint (VER-007), so it can be traced
+  back and re-matched after the assessment is regenerated. The source assessment
+  is never modified (VER-020).
+
+  A result's `verdict` reflects what was actually observed against the live
+  target. The Verifier never marks a weakness `confirmed` without the evidence
+  class its finding type requires (VER-009..VER-013), and distinguishes
+  "could not reproduce" from "not exploitable" (VER-013). Findings that were not
+  dynamically tested still appear, with `eligibility` and a reason, so an
+  unverified finding is never mistaken for a refuted one (VER-024).
+
+type: object
+required: [meta, results]
+additionalProperties: true
+properties:
+
+  meta:
+    type: object
+    required:
+      - schema_version
+      - generated
+      - verifier_version
+      - source_assessment
+      - target
+      - scope
+      - authorization
+      - limits
+    additionalProperties: true
+    properties:
+      schema_version: { const: 1 }
+      generated:
+        type: string
+        description: ISO-8601 UTC timestamp.
+      verifier_version: { type: string }
+      model:
+        type: [string, "null"]
+        description: Reasoning model used by the verification agent.
+      profile:
+        enum: [claude, codex-cli, copilot-cli, codex, anthropic-api, null]
+        description: |
+          Model profile that planned the verification (agent CLI or API, as in
+          AppSec Analyzer). Null when no agent ran.
+      source_assessment:
+        type: string
+        description: Path to the appsec-assessment.yaml that was verified.
+      source_assessment_sha256:
+        type: [string, "null"]
+        description: Digest of the assessment input, to detect drift.
+      target:
+        type: object
+        description: The live target as actually probed (VER-003).
+        additionalProperties: true
+        properties:
+          base_url:        { type: string }
+          environment:     { type: [string, "null"] }
+          reachable:       { type: [boolean, "null"] }
+          detected_build:  { type: [string, "null"] }
+          build_match:
+            type: [string, "null"]
+            enum: [match, mismatch, unknown, null]
+      scope:
+        type: object
+        description: Provenance of the authorisation scope that bounded the run.
+        required: [file]
+        additionalProperties: true
+        properties:
+          file:         { type: [string, "null"], description: "null when the run had the target URL alone (VER-001)" }
+          sha256:       { type: [string, "null"] }
+          owner:        { type: [string, "null"] }
+          window_from:  { type: [string, "null"] }
+          window_until: { type: [string, "null"] }
+      authorization:
+        type: object
+        description: How the run was authorised before any request (VER-002).
+        required: [confirmed, mode]
+        additionalProperties: true
+        properties:
+          confirmed: { type: boolean }
+          mode:
+            type: string
+            enum: [interactive, ci-flag]
+          at: { type: [string, "null"], description: ISO-8601 UTC time of confirmation. }
+      limits:
+        type: object
+        description: Execution bounds enforced during the run (VER-015).
+        additionalProperties: true
+        properties:
+          max_requests: { type: [integer, "null"], minimum: 0 }
+          max_attempts: { type: [integer, "null"], minimum: 0 }
+          max_calls: { type: [integer, "null"], minimum: 0 }
+          max_duration_s: { type: [number, "null"], minimum: 0 }
+          rate_rps: { type: [number, "null"], minimum: 0 }
+          cost_limit_raises:
+            type: array
+            description: |
+              Raises of the cost ceiling the operator typed when an interactive run
+              reached it; cost_limit_usd is the last one (VER-015).
+            items:
+              type: object
+              required: [from, to]
+              properties:
+                from: { type: number, minimum: 0 }
+                to: { type: number, minimum: 0 }
+      identities:
+        type: array
+        description: |
+          Test identities available to the run, by role label ONLY. No
+          credential values appear here or anywhere in this document (VER-016).
+        items:
+          type: object
+          required: [role]
+          additionalProperties: false
+          properties:
+            role:          { type: string }
+            authenticated: { type: [boolean, "null"] }
+      summary:
+        type: object
+        description: Verdict tally across results. Derived, for convenience.
+        additionalProperties: true
+        properties:
+          total:            { type: integer, minimum: 0 }
+          confirmed:        { type: integer, minimum: 0 }
+          not_reproducible: { type: integer, minimum: 0 }
+          blocked:          { type: integer, minimum: 0 }
+          inconclusive:     { type: integer, minimum: 0 }
+          not_attempted:    { type: integer, minimum: 0 }
+      safety:
+        type: object
+        description: Run-wide safety posture. Mirrors the pentest-tasks safety contract.
+        additionalProperties: true
+        properties:
+          mode:
+            type: string
+            enum: [safe, intrusive]
+            description: >-
+              "safe" (default, VER-030): read-only, single benign payload, low
+              volume, no pervasive probing. "intrusive": the operator explicitly
+              opted out for marked state-changing or more thorough probing.
+          read_only:            { type: boolean }
+          writes_allowed_for:
+            type: array
+            items: { type: string }
+            description: >-
+              VER-052: in a safe run, the findings the operator allowed write
+              requests for when asked; they were tested in intrusive mode.
+          destructive_actions:  { const: forbidden }
+          state_changes_cleaned: { type: [boolean, "null"] }
+
+  results:
+    type: array
+    description: One entry per finding considered, tested or not.
+    items:
+      type: object
+      required: [result_id, finding_ref, eligibility, verdict]
+      additionalProperties: true
+      properties:
+
+        result_id:
+          type: string
+          pattern: "^VF-\\d{3,}$"
+
+        finding_ref:
+          type: object
+          description: Link back to exactly one source finding (VER-007).
+          required: [id, match_key]
+          additionalProperties: true
+          properties:
+            id:
+              type: string
+              description: Finding id from the assessment (e.g. T-037 or F-001). Stable within one assessment; renumbers across re-runs.
+            match_key:
+              type: string
+              description: >-
+                Cross-run stable identity the Verifier recomputes the way the
+                Analyzer does: "<normalized-file>|<cwe-family>" — the evidence
+                file lowercased with a leading "./" stripped, joined to the
+                CWE folded into its drift family. This is the Analyzer's own
+                delta key, reproducible from the finding's file + cwe.
+            instance:
+              type: [string, "null"]
+              description: >-
+                "file:line" of the specific location verified, when a finding
+                has several. Disambiguates two findings that share a match_key.
+            title: { type: [string, "null"] }
+            cwe:   { type: [string, "null"], pattern: "^CWE-\\d+$" }
+
+        class:
+          type: [string, "null"]
+          description: Verification class, or null when the finding's CWE maps to none.
+          enum:
+            - xss
+            - access-control
+            - injection
+            - path-traversal
+            - open-redirect
+            - ssrf
+            - session
+            - null
+
+        eligibility:
+          type: object
+          description: Whether the finding was dynamically verifiable (VER-006).
+          required: [status]
+          additionalProperties: false
+          properties:
+            status:
+              type: string
+              enum:
+                - dynamic            # verifiable against a running system
+                - static-only        # legacy reports
+                - unsupported        # no supported proof method
+                - input-incomplete   # assessment lacked evidence file/line/route
+            reason: { type: [string, "null"] }
+
+        target_location:
+          type: [object, "null"]
+          description: What was actually probed — the finding's own location only (VER-008).
+          additionalProperties: true
+          properties:
+            url:       { type: [string, "null"] }
+            method:    { type: [string, "null"] }
+            parameter: { type: [string, "null"] }
+            source_file: { type: [string, "null"] }
+            source_line: { type: [integer, "null"], minimum: 0 }
+
+        verdict:
+          type: string
+          description: Observed outcome against the live target (VER-013).
+          enum:
+            - confirmed          # weakness reproduced with the required evidence
+            - not-reproducible   # probe did not reproduce it
+            - blocked-by-control # a runtime control prevented it
+            - inconclusive       # evidence insufficient either way
+            - not-attempted      # not dynamically tested (see eligibility/limits)
+
+        confidence:
+          type: [string, "null"]
+          enum: [high, medium, low, null]
+
+        rationale:
+          type: [string, "null"]
+          description: Short, honest reason for the verdict.
+
+        proof:
+          type: [object, "null"]
+          description: |
+            Class-specific proof detail. For xss, `executed` MUST be true for a
+            `confirmed` verdict — a merely reflected payload is `executed: false`
+            and cannot be confirmed (VER-009). For access-control, the two
+            identities and what each one saw (VER-010). For injection, the
+            observed behavioural difference, never exfiltrated data (VER-011).
+            For traversal/redirect/ssrf, the marker file or callback hit (VER-012).
+          additionalProperties: true
+          properties:
+            marker:         { type: [string, "null"] }
+            second_marker:  { type: [string, "null"], description: "The marker another account wrote to the owner's resource (VER-010)." }
+            checked:        { type: boolean }
+            contract:       { type: integer, minimum: 1 }
+            steps:
+              type: array
+              maxItems: 64
+              uniqueItems: true
+              items: {type: integer, minimum: 1}
+            variant:        { type: [string, "null"] }
+            tested_path:    { type: [string, "null"] }
+            hypothesis:     { type: [string, "null"] }
+            observation_pointer: { type: [string, "null"] }
+            form:           { type: [string, "null"], description: "The proof form the check accepted, which the console and report describe (agent/proof.py, verify/probes.py)." }
+            observation_text: { type: [string, "null"], description: "The text an injection proof observed in a page or text answer (VER-055)." }
+            scope:          { type: string }
+            missing:
+              type: array
+              maxItems: 12
+              items: {type: string, maxLength: 2000}
+            executed:       { type: [boolean, "null"] }
+            trigger:        { type: [string, "null"] }
+            identity_a:     { type: [string, "null"] }
+            identity_b:     { type: [string, "null"] }
+            observed_difference: { type: [string, "null"] }
+            callback_hit:   { type: [boolean, "null"] }
+
+        identities_used:
+          type: array
+          items: { type: string }
+          description: Role labels of identities used for this result (VER-016).
+
+        state_changes:
+          type: array
+          description: Writes this probe made, with cleanup status (VER-014).
+          items:
+            type: object
+            required: [marker, action]
+            additionalProperties: true
+            properties:
+              marker:      { type: string }
+              action:      { type: string }
+              cleaned_up:  { type: [boolean, "null"] }
+
+        deviation:
+          type: [string, "null"]
+          description: Any departure from the finding's named location, recorded (VER-008).
+
+        observations:
+          type: array
+          description: Unverified side notes noticed but NOT pursued (VER-008).
+          items: { type: string }
+
+        limits_hit:
+          type: [string, "null"]
+          description: >-
+            Which bound, if any, stopped this result early (VER-015); `safe-mode` for a finding not tested because
+            the run refused a write its test needs (VER-052).
+
+        evidence:
+          type: array
+          description: |
+            Self-contained artefacts behind the verdict, recorded by the code and
+            redacted of credentials (VER-022, VER-034). Recorded responses (`har`)
+            and screenshots can show target data and carry a `note` saying so.
+          items:
+            type: object
+            required: [kind, path]
+            additionalProperties: true
+            properties:
+              kind:
+                type: string
+                description: |
+                  `exchange` is the code's record of the steps a confirmed
+                  access-control or injection verdict cites: request and status,
+                  length and body hash of each response, no body (VER-010, VER-011).
+                  `har` holds every request of the finding and its response
+                  (VER-034); `screenshot` is an XSS page, a rendered
+                  access-control response or an image of the decisive
+                  exchanges (VER-035).
+                enum: [request, response, har, screenshot, browser-event, callback, note, exchange]
+              path:     { type: string, description: Path under evidence/, relative to the report. }
+              sha256:   { type: [string, "null"] }
+              redacted: { type: [boolean, "null"] }
+              note:     { type: [string, "null"] }
+              explanation:
+                type: string
+                maxLength: 300
+                description: |
+                  On the application screenshot that leads the report: the test
+                  agent's one-sentence explanation of what the image shows, shown
+                  labelled as such; it is never proof (VER-035).
+
+        poc:
+          type: [object, "null"]
+          description: |
+            Proof of concept recorded by the code (VER-034): the HAR file, one
+            line per step, and the steps the verdict rests on as raw HTTP with the
+            decisive part of the response. Null when nothing was sent.
+          additionalProperties: false
+          properties:
+            file: { type: [string, "null"], description: Path of the HAR file under evidence/. }
+            why:
+              type: object
+              description: >-
+                Why the result has its verdict: what the proof showed, what each kind of step showed and the
+                rule that makes it a proof, each with whether it holds, and the conclusion (VER-010, VER-034).
+              required: [lead, checks, closing]
+              additionalProperties: false
+              properties:
+                lead:    { type: string, description: What the comparison observed. }
+                closing: { type: string, description: What the verdict makes of the checks. }
+                checks:
+                  type: array
+                  items:
+                    type: object
+                    required: [ok, name, text]
+                    additionalProperties: false
+                    properties:
+                      ok:   { type: boolean }
+                      name: { type: string }
+                      text: { type: string }
+            steps:
+              type: array
+              items:
+                type: object
+                required: [step, line, decisive]
+                properties:
+                  step:     { type: integer }
+                  line:     { type: string }
+                  decisive: { type: boolean }
+            shown:
+              type: array
+              items:
+                type: object
+                required: [step, request, response]
+                properties:
+                  step:       { type: integer }
+                  role:       { enum: [normal, control, attack, effect, outcome], description: What the step is in the test, where the plan or markers say so, or as the test agent presents it (VER-059). }
+                  role_label: { type: string, description: The step's part in the comparison, e.g. "true condition". }
+                  request:    { type: string }
+                  response:   { type: string }
+                  elapsed_ms: { type: [integer, "null"], description: How long the answer took. }
+                  request_excerpt: { type: string, description: Relevant request excerpt with labelled proof marks. }
+                  response_excerpt: { type: string, description: Relevant response excerpt with labelled proof marks. }
+                  facts: { type: array, items: { type: string }, description: Recorded observations for this step. }
+                  composed_by: { enum: [verifier], description: Beside the test agent's presentation, a step it does not show, as the Verifier shows it (VER-059). }
+            presentation:
+              type: object
+              description: |
+                Who composed the shown steps and their excerpts (VER-059): the test
+                agent, with its one-sentence account, or the Verifier, with the
+                reason the test agent's presentation was not used.
+              required: [composed_by]
+              additionalProperties: false
+              properties:
+                composed_by: { enum: [test-agent, verifier] }
+                summary: { type: string, description: The test agent's sentence; model text, never proof. }
+                reason: { type: string }
+                left_out: { type: array, items: { type: string }, description: What the Verifier left out of the test agent's presentation, by step and part. }
+                not_shown: { type: array, items: { type: integer }, description: Steps the verdict rests on that the test agent's image does not show; they follow in shown as the Verifier shows them. }
+
+        evidence_review:
+          anyOf:
+            - type: "null"
+            - $ref: "#/$defs/evidence_review"
+
+        technical_review:
+          anyOf:
+            - type: "null"
+            - $ref: "#/$defs/technical_review"
+
+        write_permission:
+          type: object
+          description: >-
+            VER-052: the operator's answer when this finding needed write
+            requests safe mode does not send.
+          required: [allowed, answer, asked]
+          additionalProperties: false
+          properties:
+            allowed:   { type: boolean }
+            answer:    { enum: [finding, rest of the run, declined, no answer] }
+            at:        { type: string, description: When the answer was given (UTC). }
+            asked:     { enum: [before the finding, by the test agent, not asked] }
+            requests:  { type: array, items: { type: string }, description: The write requests shown. }
+            identity:  { type: string, description: The identity shown with them. }
+            given_for: { type: string, description: The finding whose question was answered for the rest of the run. }
+
+        timing:
+          type: object
+          additionalProperties: true
+          properties:
+            started:  { type: [string, "null"] }
+            finished: { type: [string, "null"] }
+
+        retained: { type: boolean }
+        tested_build:
+          type: object
+          required: [detected_build, build_match]
+          properties:
+            detected_build: { type: [string, "null"] }
+            build_match: { enum: [match, mismatch, unknown, null] }
+        source_generated:
+          type: [string, "null"]
+          description: Original report time retained on merge; fallback for older results without a test timestamp.
+
+$defs:
+  technical_review:
+    type: object
+    additionalProperties: false
+    required: [status, rounds, reviews, inspected_steps, reason, issues]
+    properties:
+      status:
+        enum: [clear, needs-attention, stopped, not-reviewed]
+      rounds:
+        type: integer
+        minimum: 0
+        maximum: 2
+      reviews:
+        type: integer
+        minimum: 0
+        maximum: 3
+      observations:
+        type: array
+        maxItems: 12
+        items:
+          type: object
+          additionalProperties: false
+          required: [step, review, status, summary]
+          properties:
+            step: {type: integer, minimum: 1}
+            review: {type: integer, minimum: 1, maximum: 3}
+            status: {enum: [observed, open]}
+            summary: {type: string, minLength: 1, maxLength: 600}
+      inspected_steps:
+        type: array
+        uniqueItems: true
+        maxItems: 4
+        items: {type: integer, minimum: 1}
+      reason: {type: string}
+      issues:
+        type: array
+        maxItems: 4
+        items:
+          type: object
+          additionalProperties: false
+          required: [code, detail, question]
+          properties:
+            code:
+              enum: [coverage, prerequisite, counterexample, interpretation, proof, public-resource]
+            detail: {type: string, minLength: 1, maxLength: 600}
+            question: {type: string, minLength: 1, maxLength: 600}
+  evidence_review:
+    type: object
+    additionalProperties: false
+    required:
+    - status
+    - rounds
+    - reviews
+    - visual_review
+    - reason
+    - issues
+    - presentations
+    - variants
+    properties:
+      status:
+        enum:
+        - clear
+        - needs-attention
+        - stopped
+        - not-reviewed
+      rounds:
+        type: integer
+        minimum: 0
+        maximum: 2
+      reviews:
+        type: integer
+        minimum: 0
+        maximum: 3
+      visual_review:
+        enum:
+        - not-performed
+        - performed
+      images_reviewed:
+        type: array
+        description: |
+          The application screenshots a model was shown (paths under evidence/);
+          never HTTP or other evidence images (VER-042).
+        items:
+          type: string
+      reason:
+        type: string
+      issues:
+        type: array
+        items:
+          type: object
+          properties:
+            variant:
+              type: string
+              maxLength: 200
+            code:
+              type: string
+              enum:
+              - context
+              - comparison
+              - excerpt
+              - readability
+              - missing-evidence
+              - screenshot
+            detail: &id001
+              type: string
+              minLength: 1
+              maxLength: 600
+          required:
+          - variant
+          - code
+          - detail
+          additionalProperties: false
+      variants:
+        type: array
+        items:
+          type: string
+      presentations:
+        type: array
+        maxItems: 2
+        items:
+          type: object
+          additionalProperties: false
+          required:
+          - variant
+          - explanation
+          - quotes
+          properties:
+            variant:
+              type: string
+            explanation: *id001
+            quotes:
+              type: array
+              minItems: 0
+              maxItems: 3
+              items:
+                type: object
+                properties:
+                  step:
+                    type: integer
+                    minimum: 1
+                  part:
+                    type: string
+                    enum:
+                    - request
+                    - response
+                  text:
+                    type: string
+                    minLength: 1
+                    maxLength: 240
+                required:
+                - step
+                - part
+                - text
+                additionalProperties: false

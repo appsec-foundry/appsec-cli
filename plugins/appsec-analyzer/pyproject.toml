@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "appsec-plugin-appsec-analyzer"
+version = "0.1.0"
+requires-python = ">=3.10"
+description = "Inspect source repositories and export assessments."
+dependencies = ["appsec-cli-core==0.1.0", "appsec-analyzer==0.1.0a0"]
+
+[project.entry-points."appsec_cli.tools"]
+"appsec-analyzer.repo-profile" = "appsec_plugin_appsec_analyzer.commands:profile"
+"appsec-analyzer.export" = "appsec_plugin_appsec_analyzer.commands:export"
+
+[tool.setuptools.packages.find]
+where = ["src"]
