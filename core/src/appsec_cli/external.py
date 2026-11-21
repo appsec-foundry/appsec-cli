@@ -21,7 +21,20 @@ def engine(name):
     return str(path)
 
 
-def invoke(argv, *, cwd=None, env=None, timeout=120, cap=8 * 1024 * 1024, stdin=None):
+def invoke(
+    argv,
+    *,
+    cwd=None,
+    env=None,
+    timeout=120,
+    cap=8 * 1024 * 1024,
+    stdin=None,
+    stderr=None,
+):
+    """Run argv without a shell; return the exit code and stdout.
+
+    stderr, a bytearray, receives the error output. The cap covers both streams.
+    """
     try:
         proc = subprocess.Popen(
             argv,
@@ -60,6 +73,8 @@ def invoke(argv, *, cwd=None, env=None, timeout=120, cap=8 * 1024 * 1024, stdin=
                         )
                     if key.fileobj is proc.stdout:
                         output.extend(chunk)
+                    elif stderr is not None:
+                        stderr.extend(chunk)
         code = proc.wait(timeout=max(0.01, deadline - time.monotonic()))
         return code, bytes(output)
     except subprocess.TimeoutExpired:

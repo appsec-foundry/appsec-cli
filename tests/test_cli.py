@@ -184,6 +184,166 @@ class Cli(unittest.TestCase):
         self.assertEqual(diagnostic["code"], "repository_unavailable")
         self.assertIn("GIT_TOKEN", diagnostic["message"])
 
+    def test_score_passes_other_options_to_the_engine(self):
+        from appsec_plugin_security_score import commands
+
+        report = {
+            "analysis": "security-assessment",
+            "overall": {"rating": "Good"},
+            "subscores": [{"score": 80}],
+            "checks": [],
+            "findings": [],
+        }
+        here = str(Path(".").resolve())
+        for args, forwarded in [
+            (
+                (".", "--checks", "JS-SQL", "--timeout", "30"),
+                ["--checks", "JS-SQL", "--timeout", "30"],
+            ),
+            (("--skip-checks", "PY-SQL"), ["--skip-checks", "PY-SQL"]),
+            (("--timeout=30", "."), ["--timeout=30"]),
+            (("--engine", "internal", "--commit", "HEAD"), ["--engine", "internal"]),
+        ]:
+            with (
+                self.subTest(args=args),
+                patch.object(commands, "engine", return_value="engine"),
+                patch.object(
+                    commands, "invoke", return_value=(0, json.dumps(report).encode())
+                ) as run,
+            ):
+                code, _, _ = self.call("--format", "json", "security-score", *args)
+                self.assertEqual(code, 0)
+                argv = run.call_args.args[0]
+                self.assertEqual(argv[:3], ["engine", here, "--json"])
+                self.assertEqual(argv[-len(forwarded) :], forwarded)
+
+    def test_score_keeps_its_own_engine_options(self):
+        from appsec_plugin_security_score import commands
+
+        for args in [
+            ("--update",),
+            ("--upd",),  # the engine accepts abbreviations
+            ("--yaml",),
+            ("--yam",),
+            ("--quiet",),
+            ("--legacy-score",),
+            ("--list-checks",),
+            ("--token-env", "OTHER_TOKEN"),
+            ("--token=OTHER_TOKEN",),
+            ("--base=HEAD~1",),
+            ("--worktree",),
+            ("--checks", "JS-SQL", "--update"),
+        ]:
+            with self.subTest(args=args), patch.object(commands, "invoke") as run:
+                code, out, err = self.call("security-score", ".", *args)
+                self.assertEqual((code, out), (2, ""))
+                self.assertIn("cannot be passed to the engine", err)
+                self.assertIn("Hint: Run 'appsec-cli security-score --help'.", err)
+                run.assert_not_called()
+        code, _, err = self.call("security-score", ".", "--det")
+        self.assertEqual(code, 2)
+        self.assertIn("Hint: Did you mean '--details'?", err)
+
+    def test_global_option_after_an_engine_option(self):
+        code, _, err = self.call(
+            "security-score", ".", "--checks", "X", "--format", "json"
+        )
+        self.assertEqual(code, 2)
+        self.assertIn("Error: --format is a global option.", err)
+
+    def test_engine_usage_error_is_a_usage_error(self):
+        from appsec_plugin_security_score import commands
+
+        def refuse(argv, **kwargs):
+            kwargs["stderr"].extend(
+                b"usage: security-score [-h]\n"
+                b"security-score: error: unrecognized arguments: --bogus\n"
+            )
+            return 2, b""
+
+        with (
+            patch.object(commands, "engine", return_value="engine"),
+            patch.object(commands, "invoke", side_effect=refuse),
+        ):
+            code, out, err = self.call("security-score", ".", "--bogus")
+        self.assertEqual((code, out), (2, ""))
+        self.assertIn(
+            "Error: The engine rejected an option: unrecognized arguments: --bogus", err
+        )
+
+    def test_score_details(self):
+        from appsec_plugin_security_score import commands
+
+        report = {
+            "analysis": "security-assessment",
+            "overall": {"rating": "Bad"},
+            "subscores": [
+                {
+                    "title": "Identity & access",
+                    "score": 59,
+                    "rating": "Bad",
+                    "reason": "Fast password hash",
+                },
+                {"title": "AI & agents", "score": None, "rating": "Not applicable"},
+            ],
+            "overview": {
+                "languages": [{"language": "TypeScript", "files": 630}],
+                "files": {"read": 1436, "lines": 287045},
+                "frameworks": ["Express"],
+                "routes": {"total": 110},
+                "runtimes": [{"runtime": "Node.js", "version": "24"}],
+                "development": {
+                    "ci": [{"system": "GitHub Actions"}],
+                    "security_tools": ["CodeQL"],
+                },
+            },
+            "checks": [],
+            "findings": [
+                {
+                    "rule": "JS-SQL",
+                    "severity": "high",
+                    "title": "SQL text",
+                    "file": "a.ts",
+                }
+            ],
+        }
+        with (
+            patch.object(commands, "engine", return_value="engine"),
+            patch.object(
+                commands, "invoke", return_value=(0, json.dumps(report).encode())
+            ) as run,
+        ):
+            code, out, _ = self.call(
+                "--format", "json", "security-score", ".", "--details"
+            )
+            self.assertEqual(code, 1)
+            self.assertIn("--details", run.call_args.args[0])
+            data = json.loads(out)["data"]
+            self.assertEqual(
+                data["areas"][1],
+                {
+                    "area": "AI & agents",
+                    "score": None,
+                    "rating": "Not applicable",
+                    "reason": None,
+                },
+            )
+            self.assertEqual(data["overview"]["languages"], {"TypeScript": 630})
+            code, out, _ = self.call("security-score", ".", "--details")
+            self.assertIn("  Files           1,436 read, 287,045 lines\n", out)
+            self.assertIn(
+                "  Identity & access   59  Bad\n    Fast password hash\n", out
+            )
+            self.assertIn("  AI & agents          —  Not applicable\n", out)
+            self.assertIn("Findings · 1", out)
+            code, out, _ = self.call("--format", "json", "security-score", ".")
+            data = json.loads(out)["data"]
+            self.assertEqual((data["areas"], data["overview"]), (None, None))
+            self.assertNotIn("--details", run.call_args.args[0])
+        code, _, err = self.call("security-score", ".", "--details", "--staged")
+        self.assertEqual(code, 2)
+        self.assertIn("--details applies to a repository score.", err)
+
     def test_disabled_tool(self):
         self.config.write_text('[plugins]\ndisabled = ["appsec-verifier"]\n')
         code, _, err = self.call("appsec-verifier", "export", "x.yaml")

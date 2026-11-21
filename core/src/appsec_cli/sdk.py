@@ -63,6 +63,8 @@ class Command:
     engine_distribution: str | None = None
     render_data: Callable[[Any], list[str]] | None = None
     api_version: int = 1
+    forward_except: tuple[str, ...] | None = None
+    list_findings: bool = False
 
     @property
     def data_adapter(self):
@@ -76,14 +78,29 @@ def command(
     fail_on: str | None = None,
     engine_distribution: str | None = None,
     render_data: Callable[[Any], list[str]] | None = None,
+    list_findings: bool = False,
+    forward_except: tuple[str, ...] | None = None,
 ):
-    """Declare one typed command. Its signature becomes the CLI and its help."""
+    """Declare one typed command. Its signature becomes the CLI and its help.
+
+    With forward_except, options the command does not declare reach the handler
+    in ctx.args for its engine, except the listed engine options.
+    """
     if fail_on not in (None, "never", *SEVERITIES):
         raise ValueError("unknown severity threshold")
 
     def decorate(handler):
         return Command(
-            handler, data, findings, fail_on, engine_distribution, render_data
+            handler,
+            data,
+            findings,
+            fail_on,
+            engine_distribution,
+            render_data,
+            forward_except=tuple(forward_except)
+            if forward_except is not None
+            else None,
+            list_findings=list_findings,
         )
 
     return decorate

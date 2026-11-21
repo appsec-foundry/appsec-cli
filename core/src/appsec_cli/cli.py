@@ -1,6 +1,7 @@
 """Console entry point: one click group. A tool is imported only when selected."""
 
 import difflib
+import itertools
 import json
 import os
 import shutil
@@ -13,6 +14,7 @@ from pathlib import Path
 
 import click
 import typer
+from typer.core import TyperCommand
 from typer.main import get_command
 
 from . import ui
@@ -25,8 +27,8 @@ from .sdk import SEVERITIES, Envelope, Result, ToolError
 class UsageError(click.UsageError):
     """A usage error with an optional hint for the next step."""
 
-    def __init__(self, message, hint=None):
-        super().__init__(message)
+    def __init__(self, message, hint=None, ctx=None):
+        super().__init__(message, ctx)
         self.hint = hint
 
 
@@ -82,12 +84,83 @@ def write_examples(formatter, examples):
         formatter.write("\n".join(ui.example_lines(examples)) + "\n")
 
 
+class Forwarding(TyperCommand):
+    """A tool command that hands the options it does not declare to its engine.
+
+    An unknown option and the values after it, up to the next option of this
+    command, end up in ctx.args; after --name=value, the next word is the
+    command's again. Engines may accept abbreviated option names, so
+    an abbreviation of a reserved or a declared option is refused as well.
+    """
+
+    reserved = frozenset()
+
+    def parse_args(self, ctx, args):
+        arity = {}
+        for param in self.get_params(ctx):
+            if isinstance(param, click.Option):
+                for name in param.opts + param.secondary_opts:
+                    arity[name] = 0 if param.is_flag or param.count else param.nargs
+        root = ctx.find_root().command.params
+        global_names = {name for p in root for name in p.opts + p.secondary_opts}
+        own, forward, forwarding = [], [], False
+        tokens = iter(args)
+        for token in tokens:
+            name = token.split("=", 1)[0]
+            if name in arity:
+                own.append(token)
+                if "=" not in token:
+                    own.extend(itertools.islice(tokens, arity[name]))
+                forwarding = False
+            elif name in global_names:
+                own.append(token)  # click reports it with the global-option hint
+                forwarding = False
+            elif name.startswith("-") and name != "-":
+                self.refuse_reserved(ctx, name, arity)
+                forward.append(token)
+                forwarding = "=" not in token  # --name=value has its value
+            elif forwarding:
+                forward.append(token)
+            else:
+                own.append(token)
+        super().parse_args(ctx, own)
+        ctx.args = forward
+        return forward
+
+    def refuse_reserved(self, ctx, name, declared):
+        blocked = self.reserved | set(declared)
+        if name.startswith("--"):
+            hit = len(name) > 2 and any(option.startswith(name) for option in blocked)
+        else:
+            hit = name[:2] in blocked
+        if hit:
+            meant = next(
+                (o for o in declared if o.startswith(name) and o.startswith("--")),
+                None,
+            )
+            raise UsageError(
+                f"Option '{name}' cannot be passed to the engine.",
+                f"Did you mean '{meant}'?" if meant else None,
+                ctx,
+            )
+
+    def format_options(self, ctx, formatter):
+        super().format_options(ctx, formatter)
+        formatter.write_paragraph()
+        formatter.write_text(
+            "Other options go to the engine unchanged, with the values after them."
+        )
+
+
 def as_command(spec, examples=()):
     app = typer.Typer(
         add_completion=False, rich_markup_mode=None, pretty_exceptions_enable=False
     )
-    app.command()(spec.handler)
+    forwarding = spec.forward_except is not None
+    app.command(cls=Forwarding if forwarding else None)(spec.handler)
     command = get_command(app)
+    if forwarding:
+        command.reserved = frozenset(spec.forward_except)
     command.format_epilog = lambda ctx, formatter: write_examples(formatter, examples)
     return command
 
@@ -323,6 +396,7 @@ def finish(ctx, result, **params):
             threshold=fail,
             code=code,
             verbose=params["verbose"],
+            list_findings=spec.list_findings,
         )
     emit(value, params["output"])
     return code

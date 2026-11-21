@@ -229,14 +229,24 @@ def describe(result, style):
     return "\n".join(lines)
 
 
-def table(result, style, render_data=None, *, threshold=None, code=3, verbose=False):
+def table(
+    result,
+    style,
+    render_data=None,
+    *,
+    threshold=None,
+    code=3,
+    verbose=False,
+    list_findings=False,
+):
     """One header line, the tool's view, its notes and one outcome line."""
     lines = [header(result, style), "", style(clean(result["summary"]), "bold")]
-    if render_data and "data" in result:
-        lines += ["", *(clean(line) for line in render_data(result["data"]))]
-    elif "findings" in result:
+    view = render_data(result["data"]) if render_data and "data" in result else None
+    if view:
+        lines += ["", *(clean(line) for line in view)]
+    if "findings" in result and (view is None or list_findings):
         lines += findings(result, style)
-    elif "data" in result:
+    elif "data" in result and view is None:
         lines += ["", *data_lines(result["data"], style)]
     notes = [
         note(item, style, verbose)
