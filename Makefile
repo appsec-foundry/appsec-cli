@@ -7,14 +7,14 @@ SOURCE_ARGS := $(foreach s,$(ENGINE_SOURCES),--source $(s))
 WHEELS ?= .wheelhouse
 VENV := .venv/bin/python
 LOCK := requirements-linux-py310.lock
+INSTALL = $(PYTHON) scripts/install.py --lock $(LOCK) --wheels $(WHEELS) $(SOURCE_ARGS)
 
 .PHONY: install release-check build
 
-# Build this checkout and install it with pipx, without a package index.
-install: build
-	PIP_NO_INDEX=1 PIP_FIND_LINKS="$(CURDIR)/dist $(CURDIR)/$(WHEELS)" \
-		pipx install --force --pip-args=--force-reinstall appsec-cli
-	@echo "Installed. Run: appsec-cli"
+# Build this checkout and install it with pipx, without a package index. Shows one
+# line per step and writes the output to build/install.log; VERBOSE=1 shows it.
+install:
+	@$(INSTALL) $(if $(VERBOSE),--verbose)
 
 # Check a release before you publish it: audit, versions, the tests of the core and
 # of every tool, and the pipx tests over all tools of the release.
@@ -29,10 +29,6 @@ release-check:
 	done
 	$(VENV) tests/pipx_release.py --wheels $(WHEELS)
 
-# Build the wheels of the suite and its engines in dist/.
+# Build the wheels of the suite and its engines in dist/, showing every command.
 build:
-	$(PYTHON) -m venv .venv
-	$(VENV) -m pip download -q --only-binary=:all: --require-hashes -r $(LOCK) -d $(WHEELS)
-	$(VENV) -m pip install -q --no-index --find-links $(WHEELS) --require-hashes -r $(LOCK)
-	rm -rf dist
-	$(VENV) scripts/build_release.py $(RELEASE) $(SOURCE_ARGS)
+	@$(INSTALL) --no-install --verbose $(RELEASE)

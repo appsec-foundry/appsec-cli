@@ -28,7 +28,7 @@ You need Linux x86_64, Python 3.10, Git, [pipx](https://pipx.pypa.io/stable/), a
    make install
    ```
 
-   `make install` clones the engine repositories at fixed commits, downloads the other dependencies with hash checking, and installs everything with pipx. Run it again after a `git pull`.
+   `make install` checks for Python 3.10, Git, and pipx, clones the engine repositories at fixed commits, downloads the other dependencies with hash checking, and installs everything with pipx. It shows one line per step and writes the full output to `build/install.log`; `make install VERBOSE=1` shows the output instead. Run it again after a `git pull`.
 
 2. **Try it:**
 
