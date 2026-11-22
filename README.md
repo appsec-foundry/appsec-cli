@@ -8,7 +8,7 @@
 > [!NOTE]
 > **Alpha.** Early version, actively developed. Tested on Linux x86_64 with Python 3.10 and Git.
 
-appsec-cli puts an AppSec team's security tools into one command-line tool for development teams. Developers install a single package and get every tool of the current release. All tools have the same options, JSON output, and exit codes, so CI jobs and coding agents can call each of them the same way. The AppSec team decides which tools and engine versions a release contains. Adding a tool needs no change to the CLI.
+appsec-cli puts an AppSec team's security tools into one command-line tool for development teams. Developers install a single package and get every tool of the current release. All tools share the global options, and with `--format json` the same result format and exit codes, so CI jobs and coding agents can call each of them the same way. The AppSec team decides which tools and engine versions a release contains. Adding a tool needs no change to the CLI.
 
 This repository contains an example setup with four tools from [appsec-foundry](https://github.com/appsec-foundry). Replace them with your own tools or add to them.
 
@@ -105,7 +105,9 @@ appsec-cli --format json --output report.json security-score . --commit HEAD
 appsec-cli security-score . --skip-checks JS-RANDOM --timeout 90
 ```
 
-appsec-cli holds back only the engine options that would make the result unreadable, replace the engine version of the release, start another program, or choose which secret the engine sends. It refuses them and their abbreviations with exit code 2. `analyze-threats` and `appsec-verifier` run their own code instead of an engine and keep their own options.
+In the terminal, `security-score` and the `appsec-analyzer` commands show their engine's own output and end with its exit code. With `--format json` or `sarif`, appsec-cli reads the engine's result and returns the [common result](docs/result-schema.md) instead.
+
+appsec-cli holds back only the engine options that would replace the engine version of the release, start another program, or choose which secret the engine sends. With `--format json` or `sarif`, it also holds back those that change the engine's output, such as `--json`, `--yaml`, or `--quiet`. It refuses them and their abbreviations with exit code 2. `analyze-threats` and `appsec-verifier` run their own code instead of an engine and keep their own options.
 
 | Option | Effect |
 | --- | --- |
@@ -115,9 +117,13 @@ appsec-cli holds back only the engine options that would make the result unreada
 | `--min-severity SEVERITY`, `--limit N` | Show fewer findings. Counts and exit code still include all of them. |
 | `--config FILE` | Use this configuration instead of `.appsec-cli.toml`. See [Configuration](#configuration). |
 
+`--output`, `--fail-on`, `--min-severity`, and `--limit` need the common result. A terminal run of `security-score` or an `appsec-analyzer` command refuses them, and `APPSEC_CLI_FAIL_ON`, with exit code 2; add `--format json` or `sarif`. A `fail_on` from the configuration applies only there.
+
 `appsec-cli --help` lists all options.
 
 ### Exit codes
+
+With `--format json` or `sarif`, every command ends with one of these codes. `analyze-threats` and `appsec-verifier` use them in the terminal too.
 
 | Code | Meaning |
 | --- | --- |
@@ -128,6 +134,8 @@ appsec-cli holds back only the engine options that would make the result unreada
 | 130 | Cancelled. |
 
 The default threshold is `low`. `analyze-threats` uses `never`, so its findings alone never fail a run. [JSON results and exit codes](docs/result-schema.md) has the details.
+
+In the terminal, `security-score` and the `appsec-analyzer` commands end with their engine's exit code. `security-score`, for example, ends with 1 when its assessment is incomplete and with 2 when some areas lack the evidence for a rating.
 
 ### Disable a tool
 
@@ -147,7 +155,7 @@ A disabled tool does not run, and its code is not loaded. A project configuratio
 appsec-cli --format json --output report.json --fail-on high security-score .
 ```
 
-The exit code is the job result. Keep `report.json` as a job artifact, also when the job fails.
+The exit code is the job result. Keep `report.json` as a job artifact, also when the job fails. Always pass `--format json` or `sarif` in CI: without it, `security-score` ends with its engine's exit code, and appsec-cli refuses `--fail-on`.
 
 A `.appsec-cli.toml` in the checked-out repository may come from the change under review. It can therefore only make the threshold stricter; a looser value is ignored and reported as `config_threshold_ignored`. For pull requests from forks, pass a configuration from the trusted target branch with `--config`.
 

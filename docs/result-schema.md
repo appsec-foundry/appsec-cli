@@ -35,6 +35,8 @@ A compatible reader checks `schema_version`, reads the fields it knows, and igno
 
 ## Exit codes
 
+With `--format json` or `sarif`, every command ends with one of these codes. In the terminal, commands that show their engine's output, such as `security-score`, end with the engine's exit code instead.
+
 | Exit | Meaning |
 | --- | --- |
 | 0 | Run complete, no finding at or above the threshold. |
