@@ -247,6 +247,8 @@ Upload the wheels from `dist/` and `.wheelhouse/` to your package index, and pub
 
 The package names are not registered on PyPI. Configure your index as pip's only source (`index-url`), not as an additional one (`extra-index-url`). Otherwise pip could install a package of the same name that someone else published on PyPI.
 
+Many companies serve their internal packages and a PyPI mirror under one URL, for example through a virtual repository in Artifactory or a group repository in Nexus. pip then sees a single index, but the proxy can still hand out a package of the same name from PyPI. Exclude `appsec-cli`, `appsec-cli-core`, `appsec-plugin-*` and the engine packages of your tools from the PyPI side, with an exclude pattern in Artifactory or a routing rule in Nexus.
+
 ### Versions
 
 pip only reinstalls a package when its version changes. Raise the suite version in [pyproject.toml](pyproject.toml) for every release and tag the commit as `v<version>`. Raise the version of an adapter or of the core whenever something in its directory changes. [Versions and updates](docs/writing-a-tool.md#versions-and-updates) has the details.
