@@ -46,6 +46,8 @@ def finalize(result, tool, spec, run, threshold, min_severity, limit):
             for row in rows
             if SEVERITIES.index(row["severity"]) <= SEVERITIES.index(min_severity)
         ]
+        # Most severe first, so that --limit keeps the most severe findings.
+        kept.sort(key=lambda row: SEVERITIES.index(row["severity"]))
         report["findings"] = kept[:limit]
     return report, code
 

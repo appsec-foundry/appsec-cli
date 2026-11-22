@@ -51,10 +51,30 @@ class Contracts(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(report["counts"]["high"], 1)
         run = sarif(report, result.findings)["runs"][0]
-        self.assertEqual(run["results"][0]["level"], "note")
+        self.assertEqual(run["results"][0]["level"], "error")  # limit 1 keeps high
         self.assertEqual(
             run["tool"]["driver"]["rules"][0]["properties"]["security-severity"], "8.0"
         )
+
+    def test_limit_keeps_the_most_severe_findings(self):
+        @command(findings=True)
+        def scan():
+            return Result(
+                summary="Completed",
+                findings=[
+                    Finding(rule="test/x", title=f"{s} {n}", severity=s)
+                    for n, s in enumerate(("low", "high", "medium", "high"))
+                ],
+            )
+
+        report, _ = finalize(scan.handler(), "test", scan, {}, "high", "info", 2)
+        self.assertEqual([f["title"] for f in report["findings"]], ["high 1", "high 3"])
+        report, _ = finalize(scan.handler(), "test", scan, {}, "high", "info", None)
+        self.assertEqual(
+            [f["title"] for f in report["findings"]],
+            ["high 1", "high 3", "medium 2", "low 0"],
+        )
+        self.assertEqual(report["counts"]["high"], 2)
 
     def test_bounded_process(self):
         literal = "; $(example)"

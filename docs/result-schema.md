@@ -47,7 +47,7 @@ Exit codes 0, 1, and 3 come with a result. `--fail-on never` turns off the thres
 
 ## Filters and SARIF
 
-`--min-severity` and `--limit` shorten the printed finding list. `counts` and the exit code are based on all findings.
+`findings` lists the most severe first and keeps the tool's order within a severity. `--min-severity` and `--limit` shorten the printed finding list, so `--limit 5` keeps the five most severe findings. `counts` and the exit code are based on all findings.
 
 Commands that report findings also support `--format sarif` (SARIF 2.1.0). For GitHub code scanning, each rule carries the highest severity of its findings as `security-severity`; rules with only `info` findings have none. Data-only commands reject SARIF with exit code 2.
 
