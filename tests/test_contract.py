@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import jsonschema
 from appsec_cli import Finding, Result, ToolError, command
-from appsec_cli.config import Settings, settings
+from appsec_cli.config import Settings, settings, shown
 from appsec_cli.external import invoke
 from appsec_cli.output import finalize, sarif
 from appsec_cli.sdk import Envelope
@@ -178,6 +178,55 @@ class Contracts(unittest.TestCase):
             os.mkfifo(path)
             with self.assertRaises(ToolError):
                 settings(path)
+
+    def test_configuration_errors_name_the_file_and_the_key(self):
+        cwd = os.getcwd()
+        self.addCleanup(os.chdir, cwd)
+        with tempfile.TemporaryDirectory() as tmp:
+            os.chdir(tmp)
+            user = Path(tmp, ".config/appsec-cli/config.toml")
+            user.parent.mkdir(parents=True)
+            local = Path(tmp, ".appsec-cli.toml")
+            chosen = Path(tmp, "ci.toml")
+            env = {"HOME": tmp, "XDG_CONFIG_HOME": str(user.parents[1])}
+            for files, message in [
+                (
+                    {local: "new_setting = true"},
+                    "Unsupported key 'new_setting' in .appsec-cli.toml.",
+                ),
+                (
+                    {local: 'fail_on = "hihg"'},
+                    "Unknown threshold 'hihg' in .appsec-cli.toml.",
+                ),
+                ({local: "fail_on = ["}, "Cannot read .appsec-cli.toml."),
+                (
+                    {local: '[tools.score]\nlevel = "high"'},
+                    "Only fail_on is supported in [tools.score] in .appsec-cli.toml.",
+                ),
+                (
+                    {user: "[plugins]\nextra = []"},
+                    "Invalid plugin configuration in ~/.config/appsec-cli/config.toml.",
+                ),
+                (
+                    {chosen: "new_setting = 1"},
+                    "Unsupported key 'new_setting' in ~/ci.toml.",
+                ),
+            ]:
+                for path in (user, local, chosen):
+                    path.write_text(files.get(path, ""))
+                with self.subTest(message=message), patch.dict(os.environ, env):
+                    with self.assertRaises(ToolError) as exc:
+                        settings(chosen if chosen in files else None)
+                    self.assertEqual(str(exc.exception), message)
+            # A key from the repository must not put control characters on the terminal.
+            escape = "\\" + "u001b"
+            local.write_text(f'"{escape}[2J\\nx" = 1')
+            with patch.dict(os.environ, env), self.assertRaises(ToolError) as exc:
+                settings()
+            self.assertTrue(str(exc.exception).isprintable(), str(exc.exception))
+            self.assertIn(r"\x1b[2J\nx", str(exc.exception))
+        with patch.object(Path, "home", side_effect=RuntimeError):
+            self.assertEqual(shown(Path("/srv/ci.toml")), "/srv/ci.toml")
 
     def test_configured_threshold_replaces_the_tool_default(self):
         tool = ("analyze-threats", "never")
