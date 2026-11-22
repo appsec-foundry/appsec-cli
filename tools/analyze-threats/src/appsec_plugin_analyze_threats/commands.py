@@ -170,9 +170,8 @@ def analyze(
             base = next(
                 (p[7:].decode() for p in parents if p.startswith(b"parent ")), None
             )
-        docs, gaps, cleaner = source.snapshot(
-            root, head, base, change=bool(pr or commit)
-        )
+        change = bool(pr or commit)
+        docs, gaps, cleaner, missed = source.snapshot(root, head, base, change=change)
         scope = {
             "kind": "pull_request" if pr else "commit" if commit else "repository",
             "revision": head,
@@ -234,20 +233,40 @@ def analyze(
         open_questions=parsed.open_questions,
         threats=parsed.threats,
     )
-    partial = bool(gaps or parsed.open_questions)
+    # A change review is incomplete when it left out a changed file, a repository
+    # review when it left out any file. Left-out context and open questions are
+    # part of a complete review.
+    partial = bool(missed if change else gaps)
+    diagnostics = []
+    if partial:
+        diagnostics.append(
+            Diagnostic(
+                code="incomplete_context",
+                level="warning",
+                message="Source in the review scope was left out; see data.omission_reasons.",
+            )
+        )
+    elif gaps:
+        diagnostics.append(
+            Diagnostic(
+                code="context_omitted",
+                level="info",
+                message="Unchanged files were left out of the context; see data.omission_reasons.",
+            )
+        )
+    if parsed.open_questions:
+        diagnostics.append(
+            Diagnostic(
+                code="open_questions",
+                level="warning",
+                message="Material questions remain; see data.open_questions.",
+            )
+        )
     return Result(
         status="partial" if partial else "ok",
         summary=f"{len(findings)} threat(s) reported for the reviewed source.",
         data=details.model_dump(),
         findings=findings,
         target=scope,
-        diagnostics=[
-            Diagnostic(
-                code="incomplete_context",
-                level="warning",
-                message="Source was omitted or material questions remain.",
-            )
-        ]
-        if partial
-        else None,
+        diagnostics=diagnostics or None,
     )

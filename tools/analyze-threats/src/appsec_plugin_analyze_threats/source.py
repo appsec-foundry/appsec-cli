@@ -135,6 +135,10 @@ def snapshot(repo, head, base=None, *, change=False):
         raise ToolError(
             "empty_context", "No eligible source documents in the selected revision."
         )
+    # Changed files come first, so the limits leave out context before them.
+    missed = sum(side != "context" for side, _, _ in selected) - sum(
+        document["side"] != "context" for document in documents
+    )
     cleaner = ModelSecrets.configured()
     documents = cleaner.protect(documents)
-    return documents, dict(gaps), cleaner
+    return documents, dict(gaps), cleaner, missed

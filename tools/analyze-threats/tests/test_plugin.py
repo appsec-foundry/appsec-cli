@@ -237,12 +237,28 @@ class Threats(unittest.TestCase):
                 self.assertEqual(coverage.status, "partial")
                 self.assertEqual(coverage.data["omission_reasons"]["file_too_large"], 1)
                 self.assertEqual(coverage.data["omitted"], 2)
+                # The commit changed the two files it left out.
+                partial = commands.analyze.handler(repo, commit="HEAD")
+                self.assertEqual(partial.status, "partial")
+                self.assertEqual(partial.diagnostics[0].code, "incomplete_context")
+                (repo / "app.py").write_text("version = 3\n")
+                git("commit", "-qam", "change beside the left-out files")
+                change = commands.analyze.handler(repo, commit="HEAD")
+                self.assertEqual((change.status, change.data["omitted"]), ("ok", 2))
+                self.assertEqual(
+                    [d.code for d in change.diagnostics], ["context_omitted"]
+                )
                 transport.return_value = {
                     "architecture": ARCHITECTURE,
                     "threats": [],
                     "open_questions": ["Who can deploy?"],
                 }
-                self.assertEqual(commands.analyze.handler(repo).status, "partial")
+                questions = commands.analyze.handler(repo, commit="HEAD")
+                self.assertEqual(questions.status, "ok")
+                self.assertEqual(
+                    [d.code for d in questions.diagnostics],
+                    ["context_omitted", "open_questions"],
+                )
                 transport.return_value = {
                     "architecture": ARCHITECTURE,
                     "threats": [
