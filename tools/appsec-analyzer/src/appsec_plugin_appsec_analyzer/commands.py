@@ -1,5 +1,5 @@
 import typer
-from appsec_cli import Result, ToolError, command
+from appsec_cli import Passthrough, Result, ToolError, command
 from appsec_cli.external import check_usage, engine, invoke, json_object, last_line
 from pydantic import JsonValue
 
@@ -14,10 +14,20 @@ def run(ctx, *command_args):
     return code, out, last_line(stderr)
 
 
+def terminal(*command_args):
+    """In the terminal the Analyzer prints its own output and sets the exit code."""
+
+    def call(ctx: typer.Context) -> Passthrough:
+        return Passthrough([engine("appsec-analyzer"), *command_args, *ctx.args])
+
+    return call
+
+
 @command(
     engine_distribution="appsec-analyzer",
     data=dict[str, JsonValue],
     forward_except=(),
+    passthrough=terminal("repo-profile"),
     engine_help=("appsec-analyzer", "repo-profile", "--help"),
 )
 def profile(ctx: typer.Context) -> Result:
@@ -35,6 +45,7 @@ def profile(ctx: typer.Context) -> Result:
     engine_distribution="appsec-analyzer",
     data=dict[str, JsonValue],
     forward_except=(),
+    passthrough=terminal("export"),
     engine_help=("appsec-analyzer", "export", "--help"),
 )
 def export(ctx: typer.Context) -> Result:

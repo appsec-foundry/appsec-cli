@@ -94,6 +94,30 @@ def invoke(
         proc.stderr.close()
 
 
+def attached(argv, *, env=None, timeout=120):
+    """Run argv without a shell on the caller's stdin, stdout and stderr.
+
+    Returns its exit code. On a timeout or an interruption the whole process
+    group stops, as with invoke().
+    """
+    try:
+        proc = subprocess.Popen(argv, env=env, start_new_session=True)
+    except OSError:
+        raise ToolError(
+            "binary_not_found", "The selected executable is unavailable."
+        ) from None
+    try:
+        return proc.wait(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        raise ToolError("timeout", "The command exceeded its time limit.") from None
+    finally:
+        try:
+            os.killpg(proc.pid, signal.SIGKILL)
+        except ProcessLookupError:
+            pass
+        proc.wait()
+
+
 def last_line(stderr):
     """The last line an engine wrote to stderr: usually why it stopped."""
     lines = bytes(stderr).decode(errors="replace").strip().splitlines()

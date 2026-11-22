@@ -4,7 +4,7 @@ from urllib.parse import urlsplit
 
 import typer
 from pydantic import BaseModel
-from appsec_cli import Diagnostic, Finding, Result, ToolError, command
+from appsec_cli import Diagnostic, Finding, Passthrough, Result, ToolError, command
 from appsec_cli.external import check_usage, engine, invoke, json_object, last_line
 
 
@@ -65,7 +65,17 @@ def run_status(rc, model):
 
 # Engine options appsec-cli does not pass on. Everything else goes to the engine.
 ENGINE_OWNED = (
-    # The adapter reads the engine's JSON and presents the result itself.
+    # Would replace the engine version pinned by this release.
+    "--update",
+    # Starts a program of the caller's choice.
+    "--analyzer",
+    # Selects the secret the engine sends; GIT_TOKEN reaches github.com and
+    # gitlab.com only.
+    "--token-env",
+)
+# Refused only with --format json or sarif, where the adapter reads the engine's
+# JSON and presents the result itself. In the terminal the engine prints them.
+JSON_OWNED = (
     "--json",
     "--yaml",
     "--quiet",
@@ -76,13 +86,6 @@ ENGINE_OWNED = (
     "--list-rules",
     "--list-checks",
     "--verify-rules",
-    # Would replace the engine version pinned by this release.
-    "--update",
-    # Starts a program of the caller's choice.
-    "--analyzer",
-    # Selects the secret the engine sends; GIT_TOKEN reaches github.com and
-    # gitlab.com only.
-    "--token-env",
 )
 TOKEN_HOSTS = ("github.com", "gitlab.com")
 URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s,]+")
@@ -94,6 +97,16 @@ def token_allowed(urls):
         urlsplit(url).scheme == "https" and urlsplit(url).netloc in TOKEN_HOSTS
         for url in urls
     )
+
+
+def engine_env(urls):
+    """None keeps GIT_TOKEN; otherwise the environment without it.
+
+    The engine would send GIT_TOKEN to any other host that asks for it.
+    """
+    if token_allowed(urls):
+        return None
+    return {k: v for k, v in os.environ.items() if k != "GIT_TOKEN"}
 
 
 def target(scope):
@@ -140,41 +153,6 @@ def details(model):
     return areas, overview
 
 
-def render_details(data):
-    """The overview and area scores above the findings; nothing without --details."""
-    lines = []
-    overview = data.get("overview")
-    if overview:
-        files = (
-            f"{overview['files_read']:,} read, {overview['lines'] or 0:,} lines"
-            if overview["files_read"] is not None
-            else ""
-        )
-        rows = [
-            (
-                "Languages",
-                ", ".join(f"{k} {v:,}" for k, v in overview["languages"].items()),
-            ),
-            ("Files", files),
-            ("Frameworks", ", ".join(overview["frameworks"])),
-            ("Routes", "" if overview["routes"] is None else f"{overview['routes']:,}"),
-            ("Runtimes", ", ".join(overview["runtimes"])),
-            ("CI", ", ".join(overview["ci"])),
-            ("Security tools", ", ".join(overview["security_tools"])),
-        ]
-        lines += ["Overview", *(f"  {k:<15} {v}" for k, v in rows if v)]
-    areas = data.get("areas")
-    if areas:
-        width = max(len(row["area"]) for row in areas)
-        lines += ["", "Areas"] if lines else ["Areas"]
-        for row in areas:
-            points = "—" if row["score"] is None else str(row["score"])
-            lines.append(f"  {row['area']:<{width}}  {points:>3}  {row['rating']}")
-            if row.get("reason"):
-                lines.append(f"    {row['reason']}")
-    return lines
-
-
 def finding(row):
     path = row.get("path") or row.get("file")
     location = {"kind": "file", "path": path}
@@ -190,13 +168,20 @@ def finding(row):
     )
 
 
+def terminal(ctx: typer.Context) -> Passthrough:
+    """In the terminal the engine prints the result and sets the exit code."""
+    args = list(ctx.args)
+    urls = [url for arg in args for url in URL.findall(arg)]
+    return Passthrough([engine("security-score"), *args], env=engine_env(urls))
+
+
 @command(
     engine_distribution="appsec-security-score",
     data=Score | Change,
     findings=True,
-    render_data=render_details,
-    list_findings=True,
     forward_except=ENGINE_OWNED,
+    json_except=JSON_OWNED,
+    passthrough=terminal,
     engine_help=("security-score", "--help"),
 )
 def score(ctx: typer.Context) -> Result:
@@ -208,13 +193,11 @@ def score(ctx: typer.Context) -> Result:
     """
     args = list(ctx.args)
     urls = [url for arg in args for url in URL.findall(arg)]
-    env = None
-    if not token_allowed(urls):
-        # The engine would send GIT_TOKEN to any other host that asks for it.
-        env = {k: v for k, v in os.environ.items() if k != "GIT_TOKEN"}
     stderr = bytearray()
     rc, raw = invoke(
-        [engine("security-score"), "--json", *args], env=env, stderr=stderr
+        [engine("security-score"), "--json", *args],
+        env=engine_env(urls),
+        stderr=stderr,
     )
     check_usage(rc, raw, stderr)
     if not raw.strip():

@@ -12,15 +12,16 @@ from importlib.metadata import metadata, version
 
 import click
 import typer
+from click.core import ParameterSource
 from typer.core import TyperCommand
 from typer.main import get_command
 
 from . import ui, updates
 from .catalog import discover
 from .config import settings, threshold
-from .external import engine, invoke
+from .external import attached, engine, invoke
 from .output import emit, finalize, sarif
-from .sdk import SEVERITIES, Envelope, Result, ToolError
+from .sdk import SEVERITIES, Envelope, Passthrough, Result, ToolError
 
 
 class UsageError(click.UsageError):
@@ -154,15 +155,24 @@ def engine_help_text(argv):
     )
 
 
-def as_command(spec, examples=()):
+def as_command(spec, examples=(), table=False):
+    """The click command of a spec; in the terminal a wrapper may hand over."""
     app = typer.Typer(
         add_completion=False, rich_markup_mode=None, pretty_exceptions_enable=False
     )
     forwarding = spec.forward_except is not None
+    through = table and spec.passthrough is not None
+    handler = spec.handler
+    if through:
+
+        def handler(ctx: typer.Context):
+            return spec.passthrough(ctx)
+
+        handler.__doc__ = spec.handler.__doc__
     if forwarding:
-        app.command(cls=Forwarding, options_metavar="[ARGS]...")(spec.handler)
+        app.command(cls=Forwarding, options_metavar="[ARGS]...")(handler)
     else:
-        app.command()(spec.handler)
+        app.command()(handler)
     command = get_command(app)
     if forwarding:
         if command.params:
@@ -170,7 +180,10 @@ def as_command(spec, examples=()):
                 "invalid_plugin",
                 "A command that hands its arguments to the engine declares none.",
             )
-        command.reserved = frozenset(spec.forward_except)
+        # Options for the engine's JSON are refused only where appsec-cli reads it.
+        command.reserved = frozenset(
+            spec.forward_except if through else spec.forward_except + spec.json_except
+        )
         command.engine_help = spec.engine_help
     command.format_epilog = lambda ctx, formatter: write_examples(formatter, examples)
     return command
@@ -186,7 +199,9 @@ def loaded(ctx, tool, subcommand):
     ctx.meta["appsec.run"] = (tool, spec, time.monotonic(), datetime.now(timezone.utc))
     if options(ctx)["verbose"]:
         print(f"Running {tool.name}", file=sys.stderr)
-    return as_command(spec, tool.examples(subcommand))
+    return as_command(
+        spec, tool.examples(subcommand), options(ctx)["format"] == "table"
+    )
 
 
 class ToolGroup(click.Group):
@@ -369,6 +384,8 @@ def finish(ctx, result, **params):
     if "appsec.run" not in ctx.meta:
         return result or 0
     tool, spec, start, started = ctx.meta["appsec.run"]
+    if isinstance(result, Passthrough):
+        return hand_over(ctx, tool.name, result)
     if not isinstance(result, Result):
         raise ToolError("invalid_result", "The plugin returned an invalid result.")
     cfg, _ = state(ctx)
@@ -409,9 +426,44 @@ def finish(ctx, result, **params):
             threshold=fail,
             code=code,
             verbose=params["verbose"],
-            list_findings=spec.list_findings,
         )
     emit(value, params["output"])
+    notify(ctx)
+    return code
+
+
+# Global options that act on the common result, which a terminal run does not produce.
+RESULT_OPTIONS = {
+    "output": "--output",
+    "fail_on": "--fail-on",
+    "min_severity": "--min-severity",
+    "limit": "--limit",
+}
+
+
+def hand_over(ctx, name, call):
+    """Run a wrapper's engine in the terminal: its output and exit code are the result.
+
+    A threshold, filter or output file chosen for this run is refused rather than
+    ignored, so that a job relying on it fails instead of passing unchecked.
+    """
+    root = ctx.find_root()
+    given = [
+        option
+        for param, option in RESULT_OPTIONS.items()
+        if root.get_parameter_source(param) not in (None, ParameterSource.DEFAULT)
+    ]
+    if os.getenv("APPSEC_CLI_FAIL_ON"):
+        given.append("APPSEC_CLI_FAIL_ON")
+    if given:
+        raise UsageError(
+            f"{given[0]} needs --format json or sarif.",
+            f"In the terminal, {name} shows its engine's output and exit code.",
+        )
+    env = call.env
+    if options(ctx)["no_color"]:
+        env = {**(os.environ if env is None else env), "NO_COLOR": "1"}
+    code = attached(call.argv, env=env)
     notify(ctx)
     return code
 
@@ -465,7 +517,7 @@ def tools_describe(ctx, name):
         raise UsageError(
             f"Tool '{name}' is disabled.", "See 'appsec-cli tools list --all'."
         )
-    result = describe(tools[name])
+    result = describe(tools[name], options(ctx)["format"] == "table")
     return publish(ctx, result, lambda: ui.describe(result, style_for(ctx)))
 
 
@@ -559,13 +611,13 @@ def update(ctx, yes):
 BUILTIN = {"schema": schema, "tools": tools_group, "update": update}
 
 
-def describe(tool):
+def describe(tool, table=False):
     if tool.status != "unchecked":
         raise ToolError("tool_" + tool.status, f"{tool.name} is {tool.status}.")
     definitions = []
     for name in sorted(tool.commands):
         spec = tool.load(name)
-        cmd = as_command(spec)
+        cmd = as_command(spec, table=table)
         with click.Context(cmd) as ctx:
             definitions.append(
                 {
@@ -586,7 +638,7 @@ def describe(tool):
                     "data_schema": spec.data_adapter.json_schema(),
                     "formats": ["table", "json"] + (["sarif"] if spec.findings else []),
                     **(
-                        {"forwards_except": sorted(spec.forward_except)}
+                        {"forwards_except": sorted(cmd.reserved)}
                         if spec.forward_except is not None
                         else {}
                     ),

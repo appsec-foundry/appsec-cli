@@ -182,12 +182,15 @@ class Score(unittest.TestCase):
                 second as call,
             ):
                 run(*args)
-                env = call.call_args.kwargs["env"]
-                if forwarded:
-                    self.assertIsNone(env)  # inherits GIT_TOKEN
-                else:
-                    self.assertNotIn("GIT_TOKEN", env)
-                    self.assertEqual(env["NO_COLOR"], "1")
+                # In the terminal the engine runs with the same environment.
+                terminal = score.passthrough(SimpleNamespace(args=list(args)))
+                self.assertEqual(terminal.argv, ["engine", *args])
+                for env in (call.call_args.kwargs["env"], terminal.env):
+                    if forwarded:
+                        self.assertIsNone(env)  # inherits GIT_TOKEN
+                    else:
+                        self.assertNotIn("GIT_TOKEN", env)
+                        self.assertEqual(env["NO_COLOR"], "1")
 
     def test_unreadable_remote_repository(self):
         def stop(message):
@@ -212,18 +215,15 @@ class Score(unittest.TestCase):
             self.assertIn(expected, str(exc.exception))
 
     def test_keeps_its_reserved_engine_options(self):
-        # The CLI refuses these and their abbreviations before the engine starts.
-        for option in (
-            "--update",
-            "--yaml",
-            "--quiet",
-            "--legacy-score",
-            "--list-checks",
-            "--analyzer",
-            "--token-env",
-        ):
+        # The CLI refuses these and their abbreviations before the engine starts;
+        # the JSON options only with --format json or sarif, where it reads the JSON.
+        for option in ("--update", "--analyzer", "--token-env"):
             with self.subTest(option=option):
                 self.assertIn(option, score.forward_except)
+        for option in ("--yaml", "--quiet", "--legacy-score", "--list-checks"):
+            with self.subTest(option=option):
+                self.assertIn(option, score.json_except)
+                self.assertNotIn(option, score.forward_except)
 
     def test_engine_usage_error_is_a_usage_error(self):
         def refuse(argv, **kwargs):
@@ -293,16 +293,10 @@ class Score(unittest.TestCase):
             },
         )
         self.assertEqual(result.data["overview"]["languages"], {"TypeScript": 630})
-        lines = score.render_data(result.data)
-        self.assertIn("  Files           1,436 read, 287,045 lines", lines)
-        self.assertIn("  Identity & access   59  Bad", lines)
-        self.assertIn("    Fast password hash", lines)
-        self.assertIn("  AI & agents          —  Not applicable", lines)
         first, second = engine_returns(plain)
         with first, second:
             data = run(".").data
         self.assertEqual((data["areas"], data["overview"]), (None, None))
-        self.assertEqual(score.render_data(data), [])
 
     def test_score_status(self):
         gap = {"area": "coverage", "status": "unclear"}

@@ -48,6 +48,14 @@ class Envelope(Result):
     run: dict[str, JsonValue] | None = None
 
 
+@dataclass(frozen=True)
+class Passthrough:
+    """An engine call whose output and exit code reach the caller unchanged."""
+
+    argv: list[str]
+    env: dict[str, str] | None = None
+
+
 class ToolError(Exception):
     def __init__(self, code: str, message: str):
         super().__init__(message)
@@ -64,8 +72,9 @@ class Command:
     render_data: Callable[[Any], list[str]] | None = None
     api_version: int = 1
     forward_except: tuple[str, ...] | None = None
-    list_findings: bool = False
     engine_help: tuple[str, ...] | None = None
+    passthrough: Callable[..., Passthrough] | None = None
+    json_except: tuple[str, ...] = ()
 
     @property
     def data_adapter(self):
@@ -79,9 +88,10 @@ def command(
     fail_on: str | None = None,
     engine_distribution: str | None = None,
     render_data: Callable[[Any], list[str]] | None = None,
-    list_findings: bool = False,
     forward_except: tuple[str, ...] | None = None,
     engine_help: tuple[str, ...] | None = None,
+    passthrough: Callable[..., Passthrough] | None = None,
+    json_except: tuple[str, ...] = (),
 ):
     """Declare one typed command. Its signature becomes the CLI and its help.
 
@@ -89,9 +99,17 @@ def command(
     its own, and everything after its name reaches the handler in ctx.args for
     the engine, except the listed engine options. engine_help is the console
     script and arguments that print the engine's help for --help.
+
+    With passthrough, a wrapper's engine prints the result in the terminal:
+    for --format table, appsec-cli calls passthrough(ctx) instead of the
+    handler, runs the Passthrough it returns and exits with the engine's exit
+    code. json_except lists engine options refused only when appsec-cli reads
+    the engine's JSON, with --format json or sarif.
     """
     if fail_on not in (None, "never", *SEVERITIES):
         raise ValueError("unknown severity threshold")
+    if passthrough is not None and forward_except is None:
+        raise ValueError("passthrough needs forward_except")
 
     def decorate(handler):
         return Command(
@@ -104,8 +122,9 @@ def command(
             forward_except=tuple(forward_except)
             if forward_except is not None
             else None,
-            list_findings=list_findings,
             engine_help=tuple(engine_help) if engine_help else None,
+            passthrough=passthrough,
+            json_except=tuple(json_except),
         )
 
     return decorate
