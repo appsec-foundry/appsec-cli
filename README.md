@@ -157,14 +157,19 @@ appsec-cli does not run or load a disabled tool. A project configuration cannot 
 ## Use in CI
 
 ```sh
+pip install --require-hashes -r install.lock
 appsec-cli --format json --output report.json --fail-on high security-score .
 ```
+
+Install a fixed release with the `install.lock` that your AppSec team publishes with it, so pip checks every package against its hash. The release supports Linux x86_64 with Python 3.10.
 
 Always pass `--format json` or `sarif` in CI. The exit code is the job result: 1 means a finding reached the threshold, 3 means the check is incomplete or failed. Keep `report.json` as a job artifact, even when the job fails.
 
 Only findings decide the exit code, not the score. To require a minimum score, check `data.score` in the report.
 
 A `.appsec-cli.toml` in the checked-out change can only make the threshold stricter. For pull requests from forks, pass the configuration of the target branch with `--config`.
+
+[GitLab CI](docs/gitlab-ci.md) has a template for GitLab pipelines: a gate on the changes of a merge request, the score of the default branch, and a threat review on request.
 
 ### Team CLIs and coding agents
 
@@ -226,7 +231,7 @@ A release is a set of wheels with fixed versions. Build and check it on Linux x8
 make release-check
 ```
 
-It audits the pinned dependencies, builds all packages, and tests the result with a real `pipx install` and `appsec-cli update`. The wheels and `release.lock` with their hashes end up in `dist/`.
+It audits the pinned dependencies, builds all packages, and tests the result with a real `pipx install` and `appsec-cli update`. The wheels end up in `dist/` with two lists of hashes: `release.lock` for the packages built here, `install.lock` for every package of an installation.
 
 The example tools build their engines from GitHub. To build from another Git server, such as an internal GitLab, or from a local checkout, set `ENGINE_SOURCES` to pairs of engine package and Git URL or path. `make install` accepts the same variable:
 
@@ -238,7 +243,7 @@ make release-check ENGINE_SOURCES="\
 
 The source must contain the pinned commits. The build runs the engines' packaging code, so use only sources you trust.
 
-Upload the wheels from `dist/` and `.wheelhouse/` to your package index. `appsec-cli update` then brings the new release, including new tools, to every developer.
+Upload the wheels from `dist/` and `.wheelhouse/` to your package index, and publish `install.lock` with them for installs in CI. `appsec-cli update` then brings the new release, including new tools, to every developer.
 
 The package names are not registered on PyPI. Configure your index as pip's only source (`index-url`), not as an additional one (`extra-index-url`). Otherwise pip could install a package of the same name that someone else published on PyPI.
 
@@ -273,6 +278,7 @@ Credentials never go into configuration files. They come from the provider login
 
 - [Write a tool](docs/writing-a-tool.md): one-file tools, Python adapters, tests, and versions.
 - [JSON results and exit codes](docs/result-schema.md): the result format for CI, team CLIs, and skills.
+- [GitLab CI](docs/gitlab-ci.md): a pipeline template with the GitLab package registry.
 - [Usage skill](skills/appsec-cli/SKILL.md): instructions for coding agents.
 - [Implementation plan](docs/implementation-plan.md) (German): design decisions, for maintainers.
 

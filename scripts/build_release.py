@@ -18,6 +18,7 @@ from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 
 ROOT = Path(__file__).resolve().parents[1]
+LOCK = ROOT / "requirements-linux-py310.lock"
 _spec = importlib.util.spec_from_file_location(
     "manifests", ROOT / "core/src/appsec_cli/manifests.py"
 )
@@ -218,6 +219,12 @@ def main():
         name, version = wheel.name.split("-")[:2]
         rows.append(f"{name}=={version} --hash=sha256:{digest}")
     (target / "release.lock").write_text("\n".join(rows) + "\n")
+    # Every package of an installation with its hash, for CI and other installs
+    # with pip install --require-hashes: the dependencies, then this build.
+    pinned = [
+        row for row in LOCK.read_text().splitlines() if row and not row.startswith("#")
+    ]
+    (target / "install.lock").write_text("\n".join([*pinned, *rows]) + "\n")
 
 
 if __name__ == "__main__":

@@ -23,11 +23,12 @@ release-check:
 	$(MAKE) test RELEASE=--release
 	$(VENV) tests/pipx_release.py --wheels $(WHEELS)
 
-# Build this checkout, install it into .venv and run the tests of the core and of
-# every tool there. The tests import the installed packages, so a run without a
-# fresh build would check the previous one.
+# Build this checkout, install it into .venv from install.lock and run the tests of
+# the core and of every tool there. The tests import the installed packages, so a
+# run without a fresh build would check the previous one. Without --no-deps, pip
+# also stops when install.lock misses a package.
 test: build
-	$(VENV) -m pip install --no-index --no-deps --force-reinstall --find-links dist --require-hashes -r dist/release.lock
+	$(VENV) -m pip install --no-index --force-reinstall --find-links dist --find-links $(WHEELS) --require-hashes -r dist/install.lock
 	$(VENV) -m pip check
 	$(VENV) -m unittest discover -s tests
 	for tests in tools/[!_]*/tests; do \

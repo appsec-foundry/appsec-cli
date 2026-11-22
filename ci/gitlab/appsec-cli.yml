@@ -1,0 +1,114 @@
+# appsec-cli in GitLab CI: a gate on the changes of a merge request, the score of
+# the default branch, and a threat review on request. docs/gitlab-ci.md explains
+# the setup. Include this file from the project that publishes the release:
+#
+#   include:
+#     - project: appsec/appsec-cli
+#       ref: v0.1.0
+#       file: ci/gitlab/appsec-cli.yml
+
+variables:
+  # The release, and the project whose package registry holds it: a numeric ID
+  # or a URL-encoded path.
+  APPSEC_CLI_VERSION: "0.1.0"
+  APPSEC_CLI_PROJECT: "appsec%2Fappsec-cli"
+  # security-score findings at or above this severity fail the job.
+  APPSEC_CLI_SCORE_FAIL_ON: "high"
+
+.appsec-cli:
+  stage: test
+  # The release supports Python 3.10 on Linux x86_64. Pinned by digest.
+  image: python:3.10@sha256:c10791e6f69086d5216f7b5d3b839929c454e24305867ed9bc5152f0355b5423
+  variables:
+    APPSEC_CLI_NO_UPDATE_CHECK: "1"
+    PIP_DISABLE_PIP_VERSION_CHECK: "1"
+  before_script:
+    # install.lock pins every package of the release to its hash. The job token
+    # goes only to this GitLab instance, and only over HTTPS.
+    - python -m venv /tmp/appsec-cli
+    - >-
+      curl --fail --silent --show-error --proto =https
+      --header "JOB-TOKEN: ${CI_JOB_TOKEN}"
+      --output /tmp/appsec-cli/install.lock
+      "${CI_API_V4_URL}/projects/${APPSEC_CLI_PROJECT}/packages/generic/appsec-cli/${APPSEC_CLI_VERSION}/install.lock"
+    - >-
+      /tmp/appsec-cli/bin/pip install --quiet --require-hashes --only-binary=:all:
+      --index-url "https://gitlab-ci-token:${CI_JOB_TOKEN}@${CI_SERVER_HOST}:${CI_SERVER_PORT}/api/v4/projects/${APPSEC_CLI_PROJECT}/packages/pypi/simple"
+      -r /tmp/appsec-cli/install.lock
+    - export PATH="/tmp/appsec-cli/bin:${PATH}"
+    - mkdir -p appsec-cli
+  after_script:
+    # A short summary of each result in the job log. Text from the tools and the
+    # model loses its control characters first.
+    - |
+      python3 - <<'EOF'
+      import json
+      import pathlib
+      import unicodedata
+
+
+      def clean(value):
+          return "".join(
+              c if c.isprintable() and unicodedata.category(c) != "Cf" else " "
+              for c in str(value)
+          )
+
+
+      for path in sorted(pathlib.Path("appsec-cli").glob("*.json")):
+          try:
+              report = json.loads(path.read_text())
+          except (OSError, ValueError):
+              continue
+          print(f"{clean(report['tool'])}: {clean(report['summary'])} [{report['status']}]")
+          for item in report.get("findings", []):
+              place = (item.get("locations") or [{}])[0]
+              where = ":".join(str(place[k]) for k in ("path", "start_line") if k in place)
+              print(f"  {item['severity']:<8} {clean(item['title'])}  {clean(where)}")
+          for note in report.get("diagnostics", []):
+              print(f"  {note['level']}: {clean(note['message'])}")
+      EOF
+  artifacts:
+    when: always
+    expire_in: 30 days
+    paths:
+      - appsec-cli/
+
+# Merge requests: findings in the changes since the merge base fail the job.
+appsec-cli:changes:
+  extends: .appsec-cli
+  variables:
+    GIT_DEPTH: "0"
+  script:
+    - >-
+      appsec-cli --format json --output appsec-cli/security-score-changes.json
+      --fail-on "${APPSEC_CLI_SCORE_FAIL_ON}"
+      security-score . --base "${CI_MERGE_REQUEST_DIFF_BASE_SHA}"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Default branch: the score of the whole repository.
+appsec-cli:score:
+  extends: .appsec-cli
+  script:
+    - >-
+      appsec-cli --format json --output appsec-cli/security-score.json
+      --fail-on "${APPSEC_CLI_SCORE_FAIL_ON}"
+      security-score .
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+
+# Merge requests, started by hand: a model reviews the threats of the changes.
+# It sends source code to the model provider and never blocks the pipeline.
+appsec-cli:threats:
+  extends: .appsec-cli
+  variables:
+    GIT_DEPTH: "0"
+    APPSEC_CLI_PROFILE: anthropic-api
+  script:
+    - >-
+      appsec-cli --format json --output appsec-cli/analyze-threats.json
+      analyze-threats . --base "${CI_MERGE_REQUEST_DIFF_BASE_SHA}"
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: manual
+  allow_failure: true
