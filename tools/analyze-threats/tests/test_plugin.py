@@ -119,6 +119,7 @@ class Threats(unittest.TestCase):
                     hosts.post("https://gateway.example/v1/chat/completions", {}, {})
                 self.assertEqual(exc.exception.code, diagnostic)
             self.assertEqual(connection.call_count, 3)
+            self.assertEqual(connection.call_args.kwargs["timeout"], hosts.TIME_LIMIT)
             conn.getresponse.side_effect = TimeoutError()
             with self.assertRaises(ToolError) as exc:
                 hosts.post("https://gateway.example/v1/chat/completions", {}, {})
