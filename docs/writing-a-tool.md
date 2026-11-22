@@ -201,7 +201,7 @@ def inspect(component: str) -> Result:
 
 After you add or rename an entry point, reinstall the package; entry points are read from the installed metadata.
 
-A team can also keep a plugin outside the suite: copy the template into its own repository, publish the wheel in its package index, install it with `pipx inject appsec-cli appsec-plugin-NAME`, and enable it under `[plugins].additional`. It updates with `pipx runpip appsec-cli install --upgrade appsec-plugin-NAME`.
+A team can also keep a plugin outside the suite: copy the template into its own repository, publish the wheel in its package index, install it with `pipx inject appsec-cli appsec-plugin-NAME`, and enable it under `[plugins].additional`. `appsec-cli update` updates it together with the suite, as long as the package index has it.
 
 ## Versions and updates
 

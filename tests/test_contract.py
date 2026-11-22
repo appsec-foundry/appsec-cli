@@ -76,6 +76,63 @@ class Contracts(unittest.TestCase):
         )
         self.assertEqual(report["counts"]["high"], 2)
 
+    def test_update_hint(self):
+        from importlib.metadata import version
+
+        from appsec_cli import updates
+
+        newer = "appsec-cli 9.0.0 is available. Run 'appsec-cli update'."
+        with (
+            tempfile.TemporaryDirectory() as tmp,
+            patch.dict(os.environ, {"XDG_CACHE_HOME": tmp}),
+            patch.object(updates, "pipx_metadata", return_value={}),
+            patch.object(updates, "latest", return_value="9.0.0") as look,
+        ):
+            self.assertEqual(updates.hint(now=1000.0), newer)
+            self.assertIsNone(updates.hint(now=1000.0 + 3600))  # once a day
+            self.assertEqual(look.call_count, 1)
+            self.assertEqual(updates.hint(now=1000.0 + updates.DAY), newer)
+            look.return_value = version("appsec-cli")
+            self.assertIsNone(updates.hint(now=1000.0 + 2 * updates.DAY))
+            look.return_value = None  # index unreachable or not configured
+            self.assertIsNone(updates.hint(now=1000.0 + 3 * updates.DAY))
+            with patch.dict(os.environ, {"APPSEC_CLI_NO_UPDATE_CHECK": "1"}):
+                self.assertIsNone(updates.hint(now=1000.0 + 4 * updates.DAY))
+            self.assertEqual(look.call_count, 4)
+        with (
+            patch.object(updates, "pipx_metadata", return_value=None),
+            patch.object(updates, "latest") as look,
+        ):
+            self.assertIsNone(updates.hint())
+            look.assert_not_called()
+
+    def test_update_hint_asks_only_a_team_index(self):
+        from appsec_cli import updates
+
+        self.assertTrue(
+            updates.team_index("global.index-url='https://pkgs.example.com/simple'")
+        )
+        self.assertTrue(updates.team_index(":env:.no-index='1'"))
+        self.assertFalse(
+            updates.team_index("global.index-url='https://pypi.org/simple'")
+        )
+        self.assertFalse(updates.team_index("global.timeout='5'"))
+        listing = "appsec-cli (0.2.0)\nAvailable versions: 0.2.0, 0.1.0\n"
+        for config, expected, asked in [
+            ("global.index-url='https://pkgs.example.com/simple'\n", "0.2.0", True),
+            ("", None, False),
+            (None, None, False),
+        ]:
+            calls = []
+
+            def pip(args, deadline):
+                calls.append(args[1])
+                return config if args[1] == "config" else listing
+
+            with self.subTest(config=config), patch.object(updates, "run_pip", pip):
+                self.assertEqual(updates.latest(), expected)
+                self.assertEqual("index" in calls, asked)
+
     def test_bounded_process(self):
         literal = "; $(example)"
         self.assertEqual(

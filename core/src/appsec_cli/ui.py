@@ -189,8 +189,11 @@ def section(title, rows):
 def changes(data, style):
     """What an update changed: the suite, then added, removed and updated tools."""
     before, after = data["before"], data["after"]
+    notes = [style("⚠ ", "warn") + clean(text) for text in data.get("warnings", [])]
     if before == after:
-        return f"appsec-cli {clean(after['version'])} is up to date."
+        return "\n".join(
+            [f"appsec-cli {clean(after['version'])} is up to date.", *notes]
+        )
     lines = [f"appsec-cli {clean(before['version'])} → {clean(after['version'])}"]
     old, new = before["tools"], after["tools"]
     for name in sorted(old.keys() | new.keys()):
@@ -200,7 +203,7 @@ def changes(data, style):
             lines.append(style("  - ", "muted") + clean(name))
         elif old[name] != new[name]:
             lines.append(f"    {clean(name)} {clean(old[name])} → {clean(new[name])}")
-    return "\n".join(lines)
+    return "\n".join([*lines, *notes])
 
 
 def describe(result, style):

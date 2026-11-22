@@ -83,7 +83,9 @@ appsec-cli update          # asks, upgrades, shows what changed
 appsec-cli --version       # suite and tool versions
 ```
 
-Your AppSec team sets up the package index. `update` installs the new release, including new tools, and lists what was added, removed, or updated. Tools you disabled stay disabled. In scripts, use `appsec-cli update --yes`.
+Your AppSec team sets up the package index. `update` installs the new release, including new tools, and lists what was added, removed, or updated. Plugins your team added with `pipx inject` are updated in the same run; if one of them cannot be, the suite update still counts and `update` says so. Tools you disabled stay disabled. In scripts, use `appsec-cli update --yes`.
+
+Once a day, the first run in a terminal asks the package index for a newer release and, after the result, prints `appsec-cli X is available. Run 'appsec-cli update'.` It asks only an index other than PyPI that pip is configured with, waits at most 2 seconds, and never runs with `--format json` or `sarif`, in CI, or in scripts without a terminal. `APPSEC_CLI_NO_UPDATE_CHECK=1` turns it off.
 
 ### Find commands
 

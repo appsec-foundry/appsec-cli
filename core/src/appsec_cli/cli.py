@@ -9,14 +9,13 @@ import sys
 import time
 from datetime import datetime, timezone
 from importlib.metadata import metadata, version
-from pathlib import Path
 
 import click
 import typer
 from typer.core import TyperCommand
 from typer.main import get_command
 
-from . import ui
+from . import ui, updates
 from .catalog import discover
 from .config import settings, threshold
 from .external import engine, invoke
@@ -70,6 +69,19 @@ def publish(ctx, data, text):
         )
     emit(data if params["format"] == "json" else text(), params["output"])
     return 0
+
+
+def interactive():
+    return sys.stdin.isatty() and sys.stderr.isatty()
+
+
+def notify(ctx):
+    """After a result in the terminal: once a day, whether a newer release exists."""
+    if options(ctx)["format"] != "table" or not interactive():
+        return
+    text = updates.hint()
+    if text:
+        print("\n" + style_for(ctx)(text, "muted"), file=sys.stderr)
 
 
 def tagline():
@@ -341,11 +353,13 @@ def show_version(ctx, param, value):
 def cli(ctx, **params):
     if ctx.invoked_subcommand is None:
         rows = enabled_rows(ctx)
-        return publish(
+        code = publish(
             ctx,
             {"schema_version": 1, "version": version("appsec-cli"), "tools": rows},
             lambda: ui.overview(rows, style_for(ctx), version("appsec-cli"), tagline()),
         )
+        notify(ctx)
+        return code
 
 
 @cli.result_callback()
@@ -398,6 +412,7 @@ def finish(ctx, result, **params):
             list_findings=spec.list_findings,
         )
     emit(value, params["output"])
+    notify(ctx)
     return code
 
 
@@ -491,7 +506,8 @@ def installed():
 def update(ctx, yes):
     """Update appsec-cli and its tools with pipx."""
     pipx = shutil.which("pipx")
-    if not pipx or not (Path(sys.prefix) / "pipx_metadata.json").is_file():
+    metadata = updates.pipx_metadata()
+    if not pipx or metadata is None:
         raise UsageError(
             "This installation is not managed by pipx.",
             "Update it the way you installed it.",
@@ -511,12 +527,32 @@ def update(ctx, yes):
     if run.returncode:
         sys.stderr.write(ui.clean(run.stdout + run.stderr).strip() + "\n")
         raise ToolError("update_failed", "pipx could not update appsec-cli.")
+    warnings = []
+    if metadata.get("injected_packages"):
+        # Separately: a plugin that pipx cannot update must not fail the suite update.
+        try:
+            plugins = subprocess.run(
+                [pipx, "upgrade", "--include-injected", "appsec-cli"],
+                capture_output=True,
+                text=True,
+                timeout=900,
+            ).returncode
+        except subprocess.TimeoutExpired:
+            plugins = 1
+        if plugins:
+            warnings.append(
+                "Not every plugin added with 'pipx inject' could be updated. "
+                "A plugin injected from a wheel file updates only from a package "
+                "index that has it."
+            )
     new_suite, new_tools = installed()
     data = {
         "schema_version": 1,
         "before": {"version": suite, "tools": tools},
         "after": {"version": new_suite, "tools": new_tools},
     }
+    if warnings:
+        data["warnings"] = warnings
     return publish(ctx, data, lambda: ui.changes(data, style_for(ctx)))
 
 

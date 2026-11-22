@@ -424,6 +424,56 @@ class Cli(unittest.TestCase):
         self.assertIn("  security-score ", out)
         self.assertNotIn("appsec-cli security-score .", out)
 
+    def test_update_hint_after_a_result_in_the_terminal(self):
+        from appsec_cli import cli
+
+        line = "appsec-cli 9.0.0 is available. Run 'appsec-cli update'."
+        with (
+            patch.object(cli, "interactive", return_value=True),
+            patch.object(cli.updates, "hint", return_value=line) as hint,
+        ):
+            code, _, err = self.call()
+            self.assertEqual(code, 0)
+            self.assertEqual(err, "\n" + line + "\n")
+            code, _, err = self.call("--format", "json")
+            self.assertEqual((code, err), (0, ""))
+            self.assertEqual(hint.call_count, 1)
+        with patch.object(cli.updates, "hint") as hint:
+            self.call()  # no terminal here
+            hint.assert_not_called()
+
+    def test_update_also_updates_injected_plugins(self):
+        from appsec_cli import cli
+
+        done = subprocess.CompletedProcess([], 0, "", "")
+        failed = subprocess.CompletedProcess([], 1, "", "")
+        for injected, results, warned in [
+            ({}, [done], False),
+            ({"appsec-plugin-team": {}}, [done, done], False),
+            ({"appsec-plugin-team": {}}, [done, failed], True),
+        ]:
+            with (
+                self.subTest(injected=injected, results=len(results)),
+                patch.object(cli.shutil, "which", return_value="pipx"),
+                patch.object(
+                    cli.updates,
+                    "pipx_metadata",
+                    return_value={"injected_packages": injected},
+                ),
+                patch.object(cli, "installed", return_value=("0.1.0", {})),
+                patch.object(cli.subprocess, "run", side_effect=results) as run,
+            ):
+                code, out, _ = self.call("--format", "json", "update", "--yes")
+                self.assertEqual(code, 0)
+                calls = [call.args[0] for call in run.call_args_list]
+                self.assertEqual(calls[0], ["pipx", "upgrade", "appsec-cli"])
+                if injected:
+                    self.assertEqual(
+                        calls[1],
+                        ["pipx", "upgrade", "--include-injected", "appsec-cli"],
+                    )
+                self.assertEqual("warnings" in json.loads(out), warned)
+
     def test_update_needs_pipx(self):
         code, _, err = self.call("update", "--yes")
         self.assertEqual(code, 2)
