@@ -7,6 +7,7 @@ import shutil
 import subprocess
 import sys
 import time
+import traceback
 from datetime import datetime, timezone
 from importlib.metadata import metadata, version
 
@@ -358,7 +359,7 @@ def show_version(ctx, param, value):
     "--no-color", is_flag=True, is_eager=True, help="Print text without colour."
 )
 @click.option("-v", "--verbose", is_flag=True, help="Show diagnostic codes.")
-@click.option("--debug", is_flag=True, help="Show the type of an internal error.")
+@click.option("--debug", is_flag=True, help="Show the traceback when a run fails.")
 @click.option(
     "--version",
     is_flag=True,
@@ -685,6 +686,18 @@ def usage(exc):
         print(f"Hint: {ui.clean(hint)}", file=sys.stderr)
 
 
+def trace(exc):
+    """Print the traceback of an error and of the errors it replaced, oldest first."""
+    chain = []
+    while exc is not None and exc not in chain:
+        chain.append(exc)
+        exc = exc.__cause__ or exc.__context__
+    for item in reversed(chain):
+        traceback.print_exception(
+            type(item), item, item.__traceback__, chain=False, file=sys.stderr
+        )
+
+
 def failed(ctx, exc):
     """Report a run that could not produce a result; exit code 3."""
     known = isinstance(exc, ToolError)
@@ -692,7 +705,7 @@ def failed(ctx, exc):
     message = str(exc) if known else "The command did not produce a valid result."
     params = options(ctx) if ctx else {}
     if params.get("debug"):
-        print(type(exc).__name__, file=sys.stderr)
+        trace(exc)
     result = {
         "schema_version": 1,
         "tool": ctx.meta.get("appsec.tool", "appsec-cli") if ctx else "appsec-cli",

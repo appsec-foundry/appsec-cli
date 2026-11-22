@@ -17,6 +17,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 import plugin_fixture
+from appsec_cli import ToolError
 from appsec_cli import cli as cli_module
 from appsec_cli.cli import main
 
@@ -104,6 +105,25 @@ class Cli(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertTrue(out.startswith("appsec-cli "))
         self.assertNotIn("╭", out)
+
+    def test_debug_shows_the_traceback(self):
+        def broken(*args):
+            try:
+                raise ValueError("original cause")
+            except ValueError:
+                raise ToolError("tool_failed", "The tool failed.") from None
+
+        with patch("appsec_cli.cli.finalize", side_effect=broken):
+            code, out, err = self.call("--format", "json", "fixture", ".")
+            self.assertEqual(code, 3)
+            self.assertNotIn("Traceback", err)
+            self.assertNotIn("original cause", out + err)
+            code, out, err = self.call("--debug", "--format", "json", "fixture", ".")
+        self.assertEqual(code, 3)
+        self.assertEqual(json.loads(out)["diagnostics"][0]["code"], "tool_failed")
+        self.assertIn("Traceback", err)
+        self.assertIn("ValueError: original cause", err)
+        self.assertNotIn("original cause", out)
 
     def test_engine_errors_reach_the_user(self):
         code, out, _ = self.call("--format", "json", "fixture", ".", "--fail")
