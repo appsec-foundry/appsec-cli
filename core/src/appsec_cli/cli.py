@@ -591,14 +591,28 @@ def update(ctx, yes):
             raise UsageError("Confirm the update.", "Run 'appsec-cli update --yes'.")
         if not click.confirm(f"Update appsec-cli {suite} with pipx?", default=True):
             return 0
+    # pip would ask for a login on the terminal, where the captured output hides
+    # the question; without a terminal it fails at once instead.
     try:
         run = subprocess.run(
-            [pipx, "upgrade", "appsec-cli"], capture_output=True, text=True, timeout=900
+            [pipx, "upgrade", "appsec-cli"],
+            stdin=subprocess.DEVNULL,
+            capture_output=True,
+            text=True,
+            timeout=900,
         )
     except subprocess.TimeoutExpired:
         raise ToolError("update_failed", "pipx did not finish in time.") from None
     if run.returncode:
-        sys.stderr.write(ui.clean(run.stdout + run.stderr).strip() + "\n")
+        output = run.stdout + run.stderr
+        if "User for " in output:
+            # pip asked for a login and got no answer; its traceback says no more.
+            raise ToolError(
+                "update_failed",
+                "The package index asks for a login that pip does not have. "
+                "Set up the login for pip, then run the update again.",
+            )
+        sys.stderr.write(ui.clean(output).strip() + "\n")
         raise ToolError("update_failed", "pipx could not update appsec-cli.")
     warnings = []
     if installation.get("injected_packages"):
@@ -606,6 +620,7 @@ def update(ctx, yes):
         try:
             plugins = subprocess.run(
                 [pipx, "upgrade", "--include-injected", "appsec-cli"],
+                stdin=subprocess.DEVNULL,
                 capture_output=True,
                 text=True,
                 timeout=900,

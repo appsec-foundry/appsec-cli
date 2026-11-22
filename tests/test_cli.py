@@ -305,12 +305,31 @@ class Cli(unittest.TestCase):
                 self.assertEqual(code, 0)
                 calls = [call.args[0] for call in run.call_args_list]
                 self.assertEqual(calls[0], ["pipx", "upgrade", "appsec-cli"])
+                for call in run.call_args_list:
+                    self.assertIs(call.kwargs.get("stdin"), subprocess.DEVNULL)
                 if injected:
                     self.assertEqual(
                         calls[1],
                         ["pipx", "upgrade", "--include-injected", "appsec-cli"],
                     )
                 self.assertEqual("warnings" in json.loads(out), warned)
+
+    def test_update_names_a_missing_login(self):
+        from appsec_cli import cli
+
+        asked = subprocess.CompletedProcess(
+            [], 1, "", "User for pypi.example.com: Traceback\nEOFError\n"
+        )
+        with (
+            patch.object(cli.shutil, "which", return_value="pipx"),
+            patch.object(cli.updates, "pipx_metadata", return_value={}),
+            patch.object(cli, "installed", return_value=("0.1.0", {})),
+            patch.object(cli.subprocess, "run", return_value=asked),
+        ):
+            code, out, err = self.call("--format", "json", "update", "--yes")
+        self.assertEqual(code, 3)
+        self.assertIn("asks for a login", json.loads(out)["summary"])
+        self.assertNotIn("Traceback", err)
 
     def test_update_needs_pipx(self):
         code, _, err = self.call("update", "--yes")
