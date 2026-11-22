@@ -163,6 +163,8 @@ Exit code 3 means the check is incomplete or failed. `security-score` reports `p
 
 Only findings decide the exit code. A low score alone ends with 0. To require a minimum score, check `data.score` or `data.rating` in the report.
 
+`security-score` reports as findings the weaknesses its engine deducts points for. Observations the engine only marks for manual review don't count toward the threshold; the report lists them under `data.review`.
+
 ### Team CLIs and coding agents
 
 Other programs, such as a team's own CLI, can call appsec-cli with `--format json` and read the result. [JSON results and exit codes](docs/result-schema.md) describes the format.

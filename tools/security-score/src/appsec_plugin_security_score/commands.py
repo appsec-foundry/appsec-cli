@@ -26,11 +26,21 @@ class Overview(BaseModel):
     security_tools: list[str]
 
 
+class Observation(BaseModel):
+    rule: str
+    title: str
+    severity: str
+    path: str | None = None
+    line: int | None = None
+    reason: str | None = None
+
+
 class Score(BaseModel):
     score: int | None
     rating: str
     areas: list[Area] | None = None
     overview: Overview | None = None
+    review: list[Observation] = []
 
 
 class Change(BaseModel):
@@ -168,6 +178,57 @@ def finding(row):
     )
 
 
+def scored(model):
+    """The weaknesses the engine deducts points for, each with its fix.
+
+    The engine's findings list also holds the observations it only marks for
+    manual review. Its own count and score use the area breakdowns, whose
+    entries keep the rules they merge; the fix comes from their raw findings.
+    """
+    fixes = {
+        (row["rule"], row.get("path") or row.get("file"), row.get("line")): row.get(
+            "next_action"
+        )
+        for row in model.get("findings", [])
+    }
+    rows = []
+    for area in model["subscores"]:
+        for row in area.get("breakdown", []):
+            where = (row.get("path") or row.get("file"), row.get("line"))
+            rules = row.get("rules") or [row["rule"]]
+            fix = next(
+                filter(None, (fixes.get((rule, *where)) for rule in rules)), None
+            )
+            rows.append({**row, "next_action": fix})
+    return rows
+
+
+def observations(model):
+    """What the engine leaves to manual review instead of scoring."""
+    return [
+        Observation(
+            rule=row["rule"],
+            title=row.get("title") or row["rule"],
+            severity=row["severity"],
+            path=row.get("file"),
+            line=row["line"] if isinstance(row.get("line"), int) else None,
+            reason=row.get("reason"),
+        )
+        for row in model.get("review_hints", [])
+        if row.get("disposition") == "review"
+    ]
+
+
+def review_note(count):
+    """The engine's coverage line for observations, pointing to the data."""
+    noun = "observation needs" if count == 1 else "observations need"
+    return Diagnostic(
+        level="info",
+        code="manual_review",
+        message=f"{count} further {noun} manual review; see data.review.",
+    )
+
+
 def terminal(ctx: typer.Context) -> Passthrough:
     """In the terminal the engine prints the result and sets the exit code."""
     args = list(ctx.args)
@@ -222,16 +283,18 @@ def score(ctx: typer.Context) -> Result:
             "score_failed", "The scoring engine could not complete its assessment."
         )
     status, diagnostic = run_status(rc, model)
+    diagnostics = [diagnostic] if diagnostic else []
     if model["analysis"] == "change-relevance":
         data = Change(relevance=model["relevance"])
         summary = f"Security relevance: {data.relevance}."
+        rows = model.get("findings", [])
     else:
         rating = model["overall"]["rating"]
         values = [
             row["score"] for row in model["subscores"] if row.get("score") is not None
         ]
         points = min(values) if values and rating != "Not assessed" else None
-        data = Score(score=points, rating=rating)
+        data = Score(score=points, rating=rating, review=observations(model))
         if "overview" in model:  # the engine adds it with --details
             data.areas, data.overview = details(model)
         summary = (
@@ -239,11 +302,14 @@ def score(ctx: typer.Context) -> Result:
             if points is not None
             else f"Score: {rating}"
         )
+        rows = scored(model)
+        if data.review:
+            diagnostics.append(review_note(len(data.review)))
     return Result(
         status=status,
         summary=summary,
         target=target(model.get("scope") or {}),
         data=data.model_dump(),
-        findings=[finding(row) for row in model.get("findings", [])],
-        diagnostics=[diagnostic] if diagnostic else None,
+        findings=[finding(row) for row in rows],
+        diagnostics=diagnostics or None,
     )

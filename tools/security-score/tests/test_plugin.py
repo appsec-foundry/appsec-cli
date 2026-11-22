@@ -254,6 +254,14 @@ class Score(unittest.TestCase):
                     "score": 59,
                     "rating": "Bad",
                     "reason": "Fast password hash",
+                    "breakdown": [
+                        {
+                            "rule": "JS-SQL",
+                            "severity": "high",
+                            "title": "SQL text",
+                            "file": "a.ts",
+                        }
+                    ],
                 },
                 {"title": "AI & agents", "score": None, "rating": "Not applicable"},
             ],
@@ -298,6 +306,108 @@ class Score(unittest.TestCase):
             data = run(".").data
         self.assertEqual((data["areas"], data["overview"]), (None, None))
 
+    def test_findings_are_the_weaknesses_the_engine_scores(self):
+        # The engine's findings list also holds what it only marks for review.
+        # Its score and count use the area breakdowns; so do findings and gate.
+        report = {
+            "analysis": "security-assessment",
+            "overall": {"rating": "Bad"},
+            "checks": [],
+            "findings": [
+                {
+                    "rule": "JS-SQL",
+                    "severity": "high",
+                    "title": "SQL text",
+                    "file": "a.ts",
+                    "line": 3,
+                    "next_action": "Bind parameters.",
+                },
+                {
+                    "rule": "JS-EVAL",
+                    "severity": "high",
+                    "title": "Code evaluation",
+                    "file": "b.ts",
+                    "line": 5,
+                    "next_action": "Keep input as data.",
+                },
+                {
+                    "rule": "JS-COOKIE",
+                    "severity": "low",
+                    "title": "Cookie flags",
+                    "file": "c.ts",
+                    "line": 7,
+                },
+            ],
+            "subscores": [
+                {
+                    "score": 59,
+                    "breakdown": [
+                        # The design check owns the SQL finding at its location.
+                        {
+                            "rule": "DESIGN-DATA-BOUNDARY",
+                            "rules": ["DESIGN-DATA-BOUNDARY", "JS-SQL"],
+                            "severity": "high",
+                            "title": "Request data in SQL text",
+                            "file": "a.ts",
+                            "line": 3,
+                        }
+                    ],
+                }
+            ],
+            "review_hints": [
+                {
+                    "rule": "JS-EVAL",
+                    "severity": "high",
+                    "title": "Code evaluation",
+                    "file": "b.ts",
+                    "line": 5,
+                    "reason": "Needs verification.",
+                    "disposition": "review",
+                },
+                {
+                    "rule": "JS-COOKIE",
+                    "severity": "low",
+                    "title": "Cookie flags",
+                    "file": "c.ts",
+                    "line": 7,
+                    "reason": "Fixed cookie.",
+                    "disposition": "neutral",
+                },
+            ],
+        }
+        first, second = engine_returns(report)
+        with first, second:
+            result = run(".")
+        body, code = finalize(result, "security-score", score, {}, "high", "info", None)
+        self.assertEqual(
+            [f.rule for f in result.findings], ["security-score/DESIGN-DATA-BOUNDARY"]
+        )
+        self.assertEqual(result.findings[0].remediation, "Bind parameters.")
+        self.assertEqual(body["counts"]["high"], 1)
+        self.assertEqual(code, 1)
+        self.assertEqual(
+            body["data"]["review"],
+            [
+                {
+                    "rule": "JS-EVAL",
+                    "title": "Code evaluation",
+                    "severity": "high",
+                    "path": "b.ts",
+                    "line": 5,
+                    "reason": "Needs verification.",
+                }
+            ],
+        )
+        self.assertEqual(
+            [(d.code, d.message) for d in result.diagnostics],
+            [
+                (
+                    "manual_review",
+                    "1 further observation needs manual review; see data.review.",
+                )
+            ],
+        )
+
     def test_score_status(self):
         gap = {"area": "coverage", "status": "unclear"}
         nested = {"area": "coverage", "status": "satisfied", "locations": [gap]}
@@ -317,7 +427,20 @@ class Score(unittest.TestCase):
             engine = {
                 "analysis": "security-assessment",
                 "overall": {"rating": "Bad"},
-                "subscores": [{"score": 40}],
+                "subscores": [
+                    {
+                        "score": 40,
+                        "breakdown": [
+                            {
+                                "rule": "PY-SQL",
+                                "severity": "high",
+                                "title": "SQL text",
+                                "file": "a.py",
+                                "line": 3,
+                            }
+                        ],
+                    }
+                ],
                 "checks": checks,
                 "findings": [
                     {
