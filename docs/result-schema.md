@@ -10,7 +10,7 @@ This page is for CI pipelines, team CLIs, and skills that read appsec-cli result
 
 ## Result
 
-Every result has `schema_version`, `tool`, `status`, and `summary`. Depending on the command, `target`, `run`, `data`, `findings`, `counts`, and `diagnostics` follow. This inventory returns data only:
+Every result has `schema_version`, `tool`, `status`, and `summary`. Depending on the command, `target`, `run`, `data`, `findings`, `counts`, and `diagnostics` follow. A data-only result, for example from an inventory tool:
 
 ```json
 {"schema_version":1,"tool":"team-inventory","status":"ok","summary":"Inventory complete.","data":{"components":12}}
@@ -24,7 +24,7 @@ Every result has `schema_version`, `tool`, `status`, and `summary`. Depending on
 | `summary` | One sentence for people and skills. |
 | `target` | What was checked, with a `kind` such as `repository`, `change`, `commit`, or `pull_request`. |
 | `data` | The command's own result, any JSON value. Its schema is the command's `data_schema`. |
-| `findings` | List of findings. An empty list means that no findings were found. A missing field means that the command makes no statement about findings. |
+| `findings` | List of findings. An empty list means no findings. If the field is missing, the command does not report findings. |
 | `counts` | Findings per severity before filtering. Present whenever `findings` is. |
 | `diagnostics` | Errors and warnings, each with `level`, a fixed `code`, and `message`. |
 | `run` | CLI, plugin, and tool version, start time, and duration of a completed run. For an adapter without an engine, the tool version is the adapter version. |
@@ -53,4 +53,4 @@ Exit codes 0, 1, and 3 come with a result. `--fail-on never` turns off the thres
 
 Commands that report findings also support `--format sarif` (SARIF 2.1.0). For GitHub code scanning, each rule carries the highest severity of its findings as `security-severity`; rules with only `info` findings have none. Data-only commands reject SARIF with exit code 2.
 
-A truncated report or missing JSON output is an error of the call, not an empty result.
+Treat truncated or missing JSON output as a failed call, not as an empty result.

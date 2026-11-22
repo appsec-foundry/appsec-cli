@@ -12,9 +12,9 @@ This guide is for the AppSec team that maintains the suite. Each tool is one dir
 | Needs its own finding rules, several commands, or engine-specific exit codes | A [Python adapter](#python-adapter), copied from [tools/_template](../tools/_template) |
 | Not written in Python, or runs as a separate service | A Python adapter that starts the program or calls its API |
 
-Both kinds give the command the same help, tool list entry, disable switch, and JSON output as every other command. Neither changes the CLI core.
+Both kinds get the same help, tool list entry, disable switch, and JSON output as every other command, and neither needs a change to the CLI core.
 
-- Names use lowercase letters, digits, and hyphens. `tools`, `schema`, and `update` are reserved.
+- Names use lowercase letters, digits, and hyphens. `tools`, `schema`, and `update` are reserved, and two tools cannot share a name.
 - A directory holds either `tool.toml` or `pyproject.toml`, not both.
 - Directories whose name starts with `_`, such as `_template`, are not part of a release.
 
@@ -45,7 +45,6 @@ After the next suite release, teams run `appsec-cli repo-inventory .`. The build
 - Any other exit code ends the run with `tool_failed` and exit code 3. When the engine rejects its arguments the way argparse does (exit 2, `PROG: error: REASON` on stderr), the run ends as a usage error with exit code 2.
 - `appsec-cli NAME --help` shows the engine's own `--help`.
 - Each run is limited to 120 seconds and 8 MiB of output.
-- Names use lowercase letters, digits, and hyphens. `tools` and `schema` are reserved, and a module cannot reuse the name of a bundled plugin.
 
 ## Python adapter
 
@@ -61,13 +60,13 @@ Copy the template and give it the new name in four places. For a tool named `pol
 3. In `pyproject.toml`, set `name = "appsec-plugin-policy-check"`, a `description`, and the entry point `"policy-check" = "appsec_plugin_policy_check:run"`.
 4. In the code and in `tests/test_plugin.py`, replace `appsec_plugin_template` with `appsec_plugin_policy_check`, and the rule prefix `template/` with `policy-check/`.
 
-The build stops when the package name does not match the directory. `appsec-cli tools list --check` reports an entry point that does not.
+The build stops when the package name does not match the directory. `appsec-cli tools list --check` reports an entry point whose name does not match.
 
 The template has one command that returns data and findings. For a tool with several commands, register one entry point per command, such as `"reports.summary"` and `"reports.export"`; teams then run `appsec-cli reports summary`.
 
-To wrap an engine, add it pinned to `dependencies`, for example `"appsec-security-score==0.3.3"`, and start its console script with `appsec_cli.external.invoke`: your fixed arguments first, then everything the user typed (see `forward_except` under [Plugin interface](#plugin-interface)). Adapt the accepted exit codes and the translation of the native output to your tool. The [security-score adapter](../tools/security-score/src/appsec_plugin_security_score/commands.py) shows this for a tool that also reports partial results. [Engine sources](#engine-sources) explains where the release build gets the engine.
+To wrap an engine, add it to `dependencies` with a pinned version, for example `"appsec-security-score==0.3.3"`, and start its console script with `appsec_cli.external.invoke`: your fixed arguments first, then everything the user typed. Adapt the accepted exit codes and the mapping of the engine's output to your tool. [Wrap an engine](#wrap-an-engine) has the details, and [Engine sources](#engine-sources) explains where the release build gets the engine.
 
-A tool written in another language can ship its executable as a resource in platform-specific wheels. The adapter resolves the resource from its installed package and starts it with `appsec_cli.external.invoke`. That function takes an argument list, uses no shell, and enforces a time and an output limit. For offline runs and reproducible upgrades, put the engine or its client in the adapter's pinned dependencies.
+A tool written in another language can ship its executable as a resource in platform-specific wheels. The adapter finds the resource in its installed package and starts it with `appsec_cli.external.invoke`, which takes an argument list, uses no shell, and limits run time and output size. For offline runs and reproducible upgrades, put the engine or its client in the adapter's pinned dependencies.
 
 ## Engine sources
 
@@ -172,18 +171,32 @@ def inspect(component: str) -> Result:
 ```
 
 - The handler's signature becomes the command's arguments and options, its docstring the help text.
-- `@command(data=...)` declares the schema of `data`. `tools describe` publishes it.
+- `@command(data=...)` declares the schema of `data`, which `tools describe` publishes.
 - `@command(findings=True)` allows findings. Every rule starts with the command name and a slash, such as `policy-check/todo`.
 - A plugin sets `status` (`ok`, `partial`, `failed`) and can add `diagnostics` with fixed codes.
-- In the terminal, appsec-cli frames the result with one header line and one outcome line. In between it shows the summary, then the findings, or the data of a data-only command as `key: value` lines. `render_data=` replaces that view with your own: a function that turns the validated data into plain lines of text. The JSON output stays unchanged.
-- `forward_except=(...)` makes the command a wrapper. It declares no arguments of its own; everything after its name reaches the handler in `ctx.args` (declare `ctx: typer.Context`). Start the engine with your fixed arguments followed by `ctx.args`. List the engine options appsec-cli must not pass on: output formats the adapter cannot read, a self-update, and options that start another program or choose a secret or a destination for data. Because argparse engines accept abbreviated options, appsec-cli also refuses their abbreviations. `engine_help=("console-script", "--help")` makes `--help` show the engine's help. `appsec_cli.external.check_usage(code, stdout, stderr)` turns an argparse rejection into a usage error, and `last_line(stderr)` gives the engine's reason when it stops; `invoke(..., stderr=buffer)` collects that output. The [security-score adapter](../tools/security-score/src/appsec_plugin_security_score/commands.py) shows all of this.
-- A wrapper can set `passthrough=function` to let its engine answer in the terminal. With `--format table`, appsec-cli calls that function instead of the handler and runs the `appsec_cli.Passthrough(argv, env=...)` it returns on the caller's terminal. The engine's output and exit code are then the result, without header and outcome line, and appsec-cli refuses `--output`, `--fail-on`, `--min-severity`, `--limit`, and `APPSEC_CLI_FAIL_ON`. `--format json` and `sarif` still call the handler. List the output formats the handler cannot read in `json_except=(...)` instead of `forward_except`, so that the terminal accepts them. Build `env` as the handler does, for example without secrets the engine must not send. The security-score adapter shows this too.
+- In the terminal, appsec-cli shows a header line, the summary, the findings (or, for a data-only command, the data as `key: value` lines), and an outcome line. To show the data differently, pass `render_data=` a function that turns the validated data into plain lines of text. The JSON output stays the same.
 - Raise `typer.BadParameter` for invalid arguments (exit code 2) and `appsec_cli.ToolError(code, message)` for an expected failure (status `failed`, exit code 3).
 - Plugins return a result and never print to stdout themselves.
 
+### Wrap an engine
+
+`forward_except=(...)` makes a command a wrapper. The command declares no arguments of its own; everything after its name reaches the handler in `ctx.args` (declare `ctx: typer.Context`). Start the engine with your fixed arguments followed by `ctx.args`.
+
+In `forward_except`, list the engine options appsec-cli must not pass on: output formats the adapter cannot read, a self-update, and options that start another program or choose a secret or a destination for data. argparse engines accept abbreviated options, so appsec-cli refuses the abbreviations too.
+
+- `engine_help=("console-script", "--help")` makes `--help` show the engine's help.
+- `appsec_cli.external.check_usage(code, stdout, stderr)` turns an argparse rejection into a usage error.
+- `appsec_cli.external.last_line(stderr)` returns the engine's reason when it stops. `invoke(..., stderr=buffer)` collects that output.
+
+To let the engine answer in the terminal, set `passthrough=function`. With `--format table`, appsec-cli calls that function instead of the handler and runs the `appsec_cli.Passthrough(argv, env=...)` it returns on the caller's terminal. The engine's output and exit code are then the result, without header and outcome line, and appsec-cli refuses `--output`, `--fail-on`, `--min-severity`, `--limit`, and `APPSEC_CLI_FAIL_ON`. `--format json` and `sarif` still call the handler.
+
+With a passthrough, list the output formats the handler cannot read in `json_except=(...)` instead of `forward_except`, so the terminal still accepts them. Build `env` the same way the handler does, for example without secrets the engine must not send.
+
+The [security-score adapter](../tools/security-score/src/appsec_plugin_security_score/commands.py) shows all of this, including partial results.
+
 ## Test a tool
 
-1. Adapt the template test and run it with the Python of an environment where the adapter is installed. Like the template test, call the handler directly; the core tests cover the CLI around it, such as help, usage errors, reserved engine options and exit codes.
+1. Adapt the template test. It calls the handler directly; the core tests already cover the CLI around it, such as help, usage errors, refused engine options, and exit codes. Run it with the Python of an environment where the adapter is installed:
 
    ```sh
    python -m unittest discover -s tools/policy-check/tests
@@ -198,7 +211,7 @@ def inspect(component: str) -> Result:
 
    Until the tool is part of a release, enable it under `[plugins].additional` in your [user configuration](../README.md#configuration).
 3. Check `appsec-cli tools list --check`, `appsec-cli --format json tools describe NAME`, one real call, and one error case.
-4. `make release-check` builds the whole release with the new tool, runs the core tests and the tests in each `tools/NAME/tests`, installs the release with pipx and checks every tool through the installed CLI.
+4. `make release-check` builds the whole release with the new tool, runs the core tests and the tests in each `tools/NAME/tests`, installs the release with pipx, and checks every tool through the installed CLI.
 
 After you add or rename an entry point, reinstall the package; entry points are read from the installed metadata.
 
@@ -214,4 +227,4 @@ Every tool has one version: the engine pin of a `tool.toml`, or the package vers
 
 The release build stops when a package changed since the last `v*` tag without a new version. For an engine with a Git source, also update `commit` in its [source](#engine-sources).
 
-The offline adapter for AppSec Verifier contains no engine. It ships the report schema from Verifier commit `6c25aa17a2d81464dc3710a88967bb110cd9d9cd` (Apache 2.0, license in the adapter). When the Verifier schema changes, update this file and check the exported fields against existing reports.
+The AppSec Verifier adapter has no engine. It ships the report schema from [AppSec Verifier](https://github.com/appsec-foundry/appsec-verifier) commit `6c25aa17a2d81464dc3710a88967bb110cd9d9cd` under the Apache 2.0 license, with a copy in [tools/appsec-verifier/LICENSE](../tools/appsec-verifier/LICENSE). When the Verifier schema changes, replace the file and check the exported fields against existing reports.
