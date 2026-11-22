@@ -11,7 +11,10 @@
 
 appsec-cli gives development teams the security tools of their AppSec team in one command-line tool. Developers install it once and call every tool the same way, in the terminal, in CI, or from a coding agent. The AppSec team decides which tools go into a release.
 
-![Start page of appsec-cli in the terminal: the tools of the example setup with an example call each, and the next steps](docs/images/start-page.png)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/start-page-dark.png">
+  <img src="docs/images/start-page.png" alt="Start page of appsec-cli in the terminal: the tools of the example setup with an example call each, and the next steps" width="100%">
+</picture>
 
 This repository contains an example setup built on tools from [appsec-foundry](https://github.com/appsec-foundry): [Security Score](https://github.com/appsec-foundry/appsec-tools/tree/main/security-score), [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer), and [AppSec Verifier](https://github.com/appsec-foundry/appsec-verifier). Replace them with your own tools or add more.
 
