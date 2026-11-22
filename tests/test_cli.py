@@ -12,12 +12,13 @@ import sys
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
+from dataclasses import replace
 from importlib.metadata import metadata, version
 from pathlib import Path
 from unittest.mock import patch
 
 import plugin_fixture
-from appsec_cli import ToolError
+from appsec_cli import Passthrough, ToolError, catalog
 from appsec_cli import cli as cli_module
 from appsec_cli.cli import main
 
@@ -124,6 +125,33 @@ class Cli(unittest.TestCase):
         self.assertIn("Traceback", err)
         self.assertIn("ValueError: original cause", err)
         self.assertNotIn("original cause", out)
+
+    def test_global_option_after_a_terminal_wrapper(self):
+        load = catalog.Tool.load
+
+        def terminal(tool, subcommand):
+            spec = load(tool, subcommand)
+            return replace(
+                spec, passthrough=lambda ctx: Passthrough(["engine", *ctx.args])
+            )
+
+        with (
+            patch.object(catalog.Tool, "load", terminal),
+            patch("appsec_cli.cli.attached", return_value=2) as attached,
+        ):
+            code, _, err = self.call("fixture", ".", "--format", "json")
+            self.assertEqual(code, 2)
+            self.assertEqual(
+                attached.call_args.args[0], ["engine", ".", "--format", "json"]
+            )
+            self.assertIn(
+                "Hint: --format is a global option. Put it before the tool name: "
+                "appsec-cli --format … fixture …",
+                err,
+            )
+            attached.return_value = 1
+            code, _, err = self.call("fixture", ".", "--format", "json")
+        self.assertEqual((code, err), (1, ""))
 
     def test_engine_errors_reach_the_user(self):
         code, out, _ = self.call("--format", "json", "fixture", ".", "--fail")

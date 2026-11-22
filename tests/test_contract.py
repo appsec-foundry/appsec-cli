@@ -42,6 +42,9 @@ class Contracts(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(report["counts"]["high"], 1)
         run = sarif(report, result.findings)["runs"][0]
+        self.assertNotIn("version", run["tool"]["driver"])
+        versioned = sarif({**report, "run": {"tool_version": "1.2.0"}})
+        self.assertEqual(versioned["runs"][0]["tool"]["driver"]["version"], "1.2.0")
         self.assertEqual(run["results"][0]["level"], "error")  # limit 1 keeps high
         self.assertEqual(
             run["tool"]["driver"]["rules"][0]["properties"]["security-severity"], "8.0"

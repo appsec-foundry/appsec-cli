@@ -93,11 +93,14 @@ def sarif(result, unfiltered=()):
         }
         for rid, s in rules.items()
     ]
+    driver = {"name": result["tool"], "rules": descriptors}
+    if result.get("run", {}).get("tool_version"):
+        driver["version"] = result["run"]["tool_version"]
     return {
         "version": "2.1.0",
         "runs": [
             {
-                "tool": {"driver": {"name": result["tool"], "rules": descriptors}},
+                "tool": {"driver": driver},
                 "invocations": [{"executionSuccessful": result["status"] == "ok"}],
                 "results": rows,
             }

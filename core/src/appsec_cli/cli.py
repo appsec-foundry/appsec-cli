@@ -481,6 +481,15 @@ def hand_over(ctx, name, call):
     if options(ctx)["no_color"]:
         env = {**(os.environ if env is None else env), "NO_COLOR": "1"}
     code = attached(call.argv, env=env)
+    if code == 2:
+        # argparse engines end with 2 on an option they do not know, such as a
+        # global option of appsec-cli given after the tool name.
+        names = global_options(root) - set(root.help_option_names) - {"--version"}
+        given = (arg.split("=", 1)[0] for arg in call.argv[1:])
+        option = next((arg for arg in given if arg in names), None)
+        if option:
+            hint = f"{option} is a global option. " + before_tool(option, name)
+            print(f"Hint: {ui.clean(hint)}", file=sys.stderr)
     notify(ctx)
     return code
 
