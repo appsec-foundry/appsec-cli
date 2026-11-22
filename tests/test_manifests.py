@@ -26,13 +26,14 @@ class ManifestTests(unittest.TestCase):
     def test_one_field_and_version_check(self):
         spec = self.read('engine = "appsec-analyzer==0.1.0a0"')
         self.assertEqual(spec.name, "inventory")
-        self.assertEqual(spec.args, ("{repo}", "--json"))
+        self.assertEqual(spec.args, ("--json",))
         with patch(
             "appsec_cli.manifest_command.ExternalTool.json", return_value={"items": 3}
         ) as call:
-            repo = self.path.parent / "a;echo hi"
-            self.assertEqual(from_manifest(spec).handler(repo).data, {"items": 3})
-            call.assert_called_once_with([str(repo), "--json"])
+            repo = str(self.path.parent / "a;echo hi")
+            handler = from_manifest(spec).handler
+            self.assertEqual(handler(SimpleNamespace(args=[repo])).data, {"items": 3})
+            call.assert_called_once_with(["--json", repo])
         with self.assertRaises(ToolError):
             from_manifest(self.read('engine = "appsec-analyzer==0.0.1"'))
         with self.assertRaises(ToolError):
@@ -50,9 +51,17 @@ class ManifestTests(unittest.TestCase):
             'engine = "a==1"\nbinary = "../bin/tool"',
             'engine = "a==1"\nargs = "sh -c"',
             'engine = "a==1"\nshell = true',
+            'engine = "a==1"\nargs = ["repo-profile", "{repo}", "--json"]',
+            'engine = "a==1"\nforward_except = "--update"',
+            'engine = "a==1"\nforward_except = ["update"]',
         ):
             with self.subTest(text=text), self.assertRaises(ValueError):
                 self.read(text)
+
+    def test_forward_except(self):
+        spec = self.read('engine = "a==1"\nforward_except = ["--update", "-u"]')
+        self.assertEqual(spec.forward_except, ("--update", "-u"))
+        self.assertEqual(self.read('engine = "a==1"').forward_except, ())
 
     def test_examples(self):
         spec = self.read(

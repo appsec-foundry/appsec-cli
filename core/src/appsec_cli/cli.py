@@ -1,7 +1,6 @@
 """Console entry point: one click group. A tool is imported only when selected."""
 
 import difflib
-import itertools
 import json
 import os
 import shutil
@@ -20,6 +19,7 @@ from typer.main import get_command
 from . import ui
 from .catalog import discover
 from .config import settings, threshold
+from .external import engine, invoke
 from .output import emit, finalize, sarif
 from .sdk import SEVERITIES, Envelope, Result, ToolError
 
@@ -85,71 +85,61 @@ def write_examples(formatter, examples):
 
 
 class Forwarding(TyperCommand):
-    """A tool command that hands the options it does not declare to its engine.
+    """A wrapper command: all its arguments belong to the engine.
 
-    An unknown option and the values after it, up to the next option of this
-    command, end up in ctx.args; after --name=value, the next word is the
-    command's again. Engines may accept abbreviated option names, so
-    an abbreviation of a reserved or a declared option is refused as well.
+    appsec-cli passes them on unchanged. It refuses only the reserved engine
+    options and their abbreviations, since argparse engines accept abbreviated
+    option names. -h and --help show the engine's own help.
     """
 
     reserved = frozenset()
+    engine_help = None
 
     def parse_args(self, ctx, args):
-        arity = {}
-        for param in self.get_params(ctx):
-            if isinstance(param, click.Option):
-                for name in param.opts + param.secondary_opts:
-                    arity[name] = 0 if param.is_flag or param.count else param.nargs
-        root = ctx.find_root().command.params
-        global_names = {name for p in root for name in p.opts + p.secondary_opts}
-        own, forward, forwarding = [], [], False
-        tokens = iter(args)
-        for token in tokens:
+        options = args[: args.index("--")] if "--" in args else args
+        if any(token in ctx.help_option_names for token in options):
+            return super().parse_args(ctx, ["--help"])
+        blocked = self.reserved | set(ctx.help_option_names)
+        for token in options:
             name = token.split("=", 1)[0]
-            if name in arity:
-                own.append(token)
-                if "=" not in token:
-                    own.extend(itertools.islice(tokens, arity[name]))
-                forwarding = False
-            elif name in global_names:
-                own.append(token)  # click reports it with the global-option hint
-                forwarding = False
-            elif name.startswith("-") and name != "-":
-                self.refuse_reserved(ctx, name, arity)
-                forward.append(token)
-                forwarding = "=" not in token  # --name=value has its value
-            elif forwarding:
-                forward.append(token)
+            if name.startswith("--"):
+                hit = len(name) > 2 and any(o.startswith(name) for o in blocked)
             else:
-                own.append(token)
-        super().parse_args(ctx, own)
-        ctx.args = forward
-        return forward
-
-    def refuse_reserved(self, ctx, name, declared):
-        blocked = self.reserved | set(declared)
-        if name.startswith("--"):
-            hit = len(name) > 2 and any(option.startswith(name) for option in blocked)
-        else:
-            hit = name[:2] in blocked
-        if hit:
-            meant = next(
-                (o for o in declared if o.startswith(name) and o.startswith("--")),
-                None,
-            )
-            raise UsageError(
-                f"Option '{name}' cannot be passed to the engine.",
-                f"Did you mean '{meant}'?" if meant else None,
-                ctx,
-            )
+                hit = name.startswith("-") and name[:2] in blocked
+            if hit:
+                raise UsageError(
+                    f"Option '{name}' cannot be passed to the engine.", None, ctx
+                )
+        super().parse_args(ctx, [])
+        ctx.args = list(args)
+        return ctx.args
 
     def format_options(self, ctx, formatter):
-        super().format_options(ctx, formatter)
+        kept = ", ".join(sorted(self.reserved))
         formatter.write_paragraph()
         formatter.write_text(
-            "Other options go to the engine unchanged, with the values after them."
+            "Arguments and options go to the engine unchanged"
+            + (f", except {kept}." if kept else ".")
         )
+        text = engine_help_text(self.engine_help)
+        if text:
+            formatter.write_paragraph()
+            formatter.write(text)
+
+
+def engine_help_text(argv):
+    """The engine's own help, or "" when it cannot be read."""
+    if not argv:
+        return ""
+    try:
+        code, raw = invoke([engine(argv[0]), *argv[1:]], timeout=10, cap=256 * 1024)
+    except ToolError:
+        return ""
+    if code:
+        return ""
+    return "".join(
+        ui.clean(line) + "\n" for line in raw.decode(errors="replace").splitlines()
+    )
 
 
 def as_command(spec, examples=()):
@@ -157,10 +147,19 @@ def as_command(spec, examples=()):
         add_completion=False, rich_markup_mode=None, pretty_exceptions_enable=False
     )
     forwarding = spec.forward_except is not None
-    app.command(cls=Forwarding if forwarding else None)(spec.handler)
+    if forwarding:
+        app.command(cls=Forwarding, options_metavar="[ARGS]...")(spec.handler)
+    else:
+        app.command()(spec.handler)
     command = get_command(app)
     if forwarding:
+        if command.params:
+            raise ToolError(
+                "invalid_plugin",
+                "A command that hands its arguments to the engine declares none.",
+            )
         command.reserved = frozenset(spec.forward_except)
+        command.engine_help = spec.engine_help
     command.format_epilog = lambda ctx, formatter: write_examples(formatter, examples)
     return command
 
@@ -550,6 +549,11 @@ def describe(tool):
                     ],
                     "data_schema": spec.data_adapter.json_schema(),
                     "formats": ["table", "json"] + (["sarif"] if spec.findings else []),
+                    **(
+                        {"forwards_except": sorted(spec.forward_except)}
+                        if spec.forward_except is not None
+                        else {}
+                    ),
                 }
             )
     return {"schema_version": 1, **tool.description(), "definitions": definitions}
@@ -570,6 +574,17 @@ def usage(exc):
             message = f"{exc.option_name} is a global option."
             hint = (
                 f"Put it before the tool name: appsec-cli {exc.option_name} … "
+                f"{exc.ctx.command_path.removeprefix('appsec-cli ')} …"
+            )
+    if hint is None and exc.ctx and root and exc.ctx is not root:
+        # A wrapper hands global options after the tool name to the engine.
+        names = {o for p in root.command.params for o in p.opts}
+        given = [a.split("=", 1)[0] for a in exc.ctx.args]
+        option = next((a for a in given if a in names and a in message), None)
+        if option:
+            hint = (
+                f"{option} is a global option. Put it before the tool name: "
+                f"appsec-cli {option} … "
                 f"{exc.ctx.command_path.removeprefix('appsec-cli ')} …"
             )
     if hint is None and exc.ctx:

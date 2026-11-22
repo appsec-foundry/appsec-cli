@@ -73,8 +73,8 @@ Usage: appsec-cli [OPTIONS] TOOL [COMMAND] [ARGS]
 Tools
   analyze-threats               Threat review of a repository, commit or PR.
     appsec-cli analyze-threats --commit HEAD
-  appsec-analyzer export        Export a saved assessment as SARIF or HTML.
-    appsec-cli appsec-analyzer export ./assessment ./out
+  appsec-analyzer export        Export a saved assessment, for example as SARIF or HTML.
+    appsec-cli appsec-analyzer export --assessment ./assessment --output ./out
   appsec-analyzer repo-profile  Repository size, languages and build manifests.
     appsec-cli appsec-analyzer repo-profile .
   appsec-verifier export        Export results from completed verification reports.
@@ -111,6 +111,7 @@ Die Analyse-Engine bestimmt Revision, Kontext und Bewertungsschema. Der gewählt
 | Ablage | Jedes Tool ist ein Verzeichnis unter `tools/`: eine `tool.toml` für ein JSON-Tool ohne Code oder ein eigenständig baubarer Python-Adapter. Das Suite-Paket nimmt alle Verzeichnisse als Abhängigkeiten auf. Externe Programme behalten ihren eigenen Releasezyklus. |
 | Installation und Updates | `pipx install appsec-cli` liefert alle offiziellen Befehle samt benötigten Tool-Paketen. `appsec-cli update` führt `pipx upgrade` aus, aktualisiert sie gemeinsam, installiert neu hinzugekommene Tools und zeigt die Änderungen. Der Release-Build verlangt für jedes geänderte Paket eine neue Version. |
 | Engine-Quellen | Jedes Tool nennt in seinem Verzeichnis die Git-Quelle seiner Engine mit URL und vollständigem Commit-Hash. Der Build klont sie und checkt diesen Commit aus. Eine Engine von PyPI steht stattdessen mit Hash im Lockfile. Im Beispiel-Setup sind es die GitHub-Repos von appsec-foundry. `ENGINE_SOURCES` wählt je Engine einen anderen Git-Server, etwa ein internes GitLab, oder einen lokalen Checkout. Vorab muss nichts geklont sein. |
+| Argumente | appsec-cli ist ein Wrapper. Alles nach dem Toolnamen geht unverändert an die Engine, `--help` zeigt deren Hilfe. Zurückgehalten werden nur Engine-Optionen, die das Ergebnis unlesbar machen, die Engine-Version des Release ersetzen, ein anderes Programm starten oder ein Geheimnis auswählen, und deren Abkürzungen. `analyze-threats` und `appsec-verifier` rufen keine Engine auf und behalten eigene Parameter. |
 | Laden | Hilfe und `tools list` nutzen Entry-Point-Metadaten und die vom Release-Build gesammelten Beschreibungen und Beispiele. Erst Aufruf und `tools describe <tool>` laden das ausgewählte Tool. |
 | Ergebnis | Gemeinsames Ergebnisschema v1 (siehe unten). Tools geben ein Ergebnisobjekt zurück und schreiben nicht selbst auf stdout. |
 | Exit-Codes | Berechnet der Kern: 0 ok, 1 Findings ab Schwelle, 2 Bedienfehler, 3 Lauf fehlgeschlagen oder unvollständig |
@@ -246,7 +247,7 @@ Jeder Entry Point verweist auf eine mit `@command` dekorierte Funktion. Das Pake
 
 ## Ursprüngliche Phasen und Abnahmekriterien
 
-Die Umsetzung weicht in vier Punkten von den Phasen ab. Die Tools liegen unter `tools/` statt unter `plugins/` und `modules/`. Statt eines Generators gibt es die Vorlage `tools/_template`. Das Lazy Loading übernimmt eine click-Gruppe statt einer eigenen TyperGroup. Die Projekt-Config kann Schwellen nur verschärfen, damit gilt die Abnahme aus Phase 3 auch ohne `--config`.
+Die Umsetzung weicht in fünf Punkten von den Phasen ab. Die Adapter deklarieren keine eigenen Argumente, sondern reichen alles an die Engine durch (siehe Getroffene Entscheidungen). Die Tools liegen unter `tools/` statt unter `plugins/` und `modules/`. Statt eines Generators gibt es die Vorlage `tools/_template`. Das Lazy Loading übernimmt eine click-Gruppe statt einer eigenen TyperGroup. Die Projekt-Config kann Schwellen nur verschärfen, damit gilt die Abnahme aus Phase 3 auch ohne `--config`.
 
 ### Phase 0: Projektgrundlage
 

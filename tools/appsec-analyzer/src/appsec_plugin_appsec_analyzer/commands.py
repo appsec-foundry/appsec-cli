@@ -1,63 +1,47 @@
-from pathlib import Path
-from typing import Annotated
-
 import typer
 from appsec_cli import Result, ToolError, command
-from appsec_cli.external import engine, invoke, json_object
+from appsec_cli.external import check_usage, engine, invoke, json_object, last_line
 from pydantic import JsonValue
 
 
-@command(engine_distribution="appsec-analyzer", data=dict[str, JsonValue])
-def profile(
-    repo: Annotated[
-        Path,
-        typer.Argument(help="Repository to inventory.", exists=True, file_okay=False),
-    ] = Path("."),
-) -> Result:
-    """Inventory repository size, languages and manifests without a model call."""
+def run(ctx, *command_args):
+    """Start the Analyzer with the fixed arguments, then everything the user gave."""
+    stderr = bytearray()
     code, out = invoke(
-        [engine("appsec-analyzer"), "repo-profile", str(repo.resolve()), "--json"]
+        [engine("appsec-analyzer"), *command_args, *ctx.args], stderr=stderr
     )
+    check_usage(code, out, stderr)
+    return code, out, last_line(stderr)
+
+
+@command(
+    engine_distribution="appsec-analyzer",
+    data=dict[str, JsonValue],
+    forward_except=(),
+    engine_help=("appsec-analyzer", "repo-profile", "--help"),
+)
+def profile(ctx: typer.Context) -> Result:
+    """Inventory repository size, languages and manifests without a model call."""
+    code, out, reason = run(ctx, "repo-profile", "--json")
     if code:
         raise ToolError(
-            "profile_failed", "Analyzer could not profile the selected repository."
+            "profile_failed",
+            reason or "Analyzer could not profile the selected repository.",
         )
     return Result(summary="Repository inventory complete.", data=json_object(out))
 
 
-@command(engine_distribution="appsec-analyzer", data=dict[str, JsonValue])
-def export(
-    assessment: Annotated[
-        Path,
-        typer.Argument(
-            help="Saved assessment directory.", exists=True, file_okay=False
-        ),
-    ],
-    destination: Annotated[
-        Path, typer.Argument(help="Directory for the exported files.")
-    ],
-    format: Annotated[
-        str, typer.Option(help="Export format: sarif or html.")
-    ] = "sarif",
-) -> Result:
-    """Export a saved assessment to a directory."""
-    if format not in ("sarif", "html"):
-        raise typer.BadParameter("Choose sarif or html.")
-    code, _ = invoke(
-        [
-            engine("appsec-analyzer"),
-            "export",
-            "--assessment",
-            str(assessment.resolve()),
-            "--output",
-            str(destination.resolve()),
-            "--formats",
-            format,
-        ]
-    )
+@command(
+    engine_distribution="appsec-analyzer",
+    data=dict[str, JsonValue],
+    forward_except=(),
+    engine_help=("appsec-analyzer", "export", "--help"),
+)
+def export(ctx: typer.Context) -> Result:
+    """Export a saved assessment, for example as SARIF or HTML."""
+    code, _, reason = run(ctx, "export")
     if code:
-        raise ToolError("export_failed", "Analyzer could not export this assessment.")
-    return Result(
-        summary="Assessment exported.",
-        data={"directory": str(destination), "format": format},
-    )
+        raise ToolError(
+            "export_failed", reason or "Analyzer could not export this assessment."
+        )
+    return Result(summary="Assessment exported.")

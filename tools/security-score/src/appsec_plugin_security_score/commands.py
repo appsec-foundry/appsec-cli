@@ -1,13 +1,11 @@
 import os
-from pathlib import Path
-from typing import Annotated, Optional
+import re
 from urllib.parse import urlsplit
 
-import click
 import typer
 from pydantic import BaseModel
 from appsec_cli import Diagnostic, Finding, Result, ToolError, command
-from appsec_cli.external import engine, invoke, json_object
+from appsec_cli.external import check_usage, engine, invoke, json_object, last_line
 
 
 class Area(BaseModel):
@@ -65,7 +63,7 @@ def run_status(rc, model):
     )
 
 
-# Engine options that stay with this adapter. Everything else is passed on.
+# Engine options appsec-cli does not pass on. Everything else goes to the engine.
 ENGINE_OWNED = (
     # The adapter reads the engine's JSON and presents the result itself.
     "--json",
@@ -74,29 +72,43 @@ ENGINE_OWNED = (
     "--quite",
     "--legacy-score",
     # Information modes without an assessment.
-    "-h",
-    "--help",
     "--version",
     "--list-rules",
     "--list-checks",
     "--verify-rules",
     # Would replace the engine version pinned by this release.
     "--update",
-    # The adapter selects what is assessed and reports it as the target.
-    "--repo",
-    "--patch",
-    "--diff",
-    "--base",
-    "--head",
-    "--commit",
-    "--staged",
-    "--unstaged",
-    "--worktree",
-    "--pr",
-    "--mr",
-    # The adapter hands GIT_TOKEN to github.com and gitlab.com only.
+    # Starts a program of the caller's choice.
+    "--analyzer",
+    # Selects the secret the engine sends; GIT_TOKEN reaches github.com and
+    # gitlab.com only.
     "--token-env",
 )
+TOKEN_HOSTS = ("github.com", "gitlab.com")
+URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s,]+")
+
+
+def token_allowed(urls):
+    """Whether every URL in the arguments is an HTTPS address on a token host."""
+    return all(
+        urlsplit(url).scheme == "https" and urlsplit(url).netloc in TOKEN_HOSTS
+        for url in urls
+    )
+
+
+def target(scope):
+    """What the engine assessed, as it reports it in its scope."""
+    found = {"kind": "change" if scope.get("kind") == "change" else "repository"}
+    where = scope.get("repository")
+    if isinstance(where, str):
+        found["url" if scope.get("selection") == "git-url" else "path"] = where
+    for key in ("base", "head"):
+        if isinstance(scope.get(key), str):
+            found[key] = scope[key]
+    revision = scope.get("revision") or scope.get("head")
+    if isinstance(revision, str):
+        found["revision"] = revision
+    return found
 
 
 def details(model):
@@ -185,92 +197,38 @@ def finding(row):
     render_data=render_details,
     list_findings=True,
     forward_except=ENGINE_OWNED,
+    engine_help=("security-score", "--help"),
 )
-def score(
-    ctx: typer.Context,
-    repo: Annotated[
-        str,
-        typer.Argument(
-            help="Local directory or HTTPS URL of a GitHub or GitLab repository."
-        ),
-    ] = ".",
-    repo_option: Annotated[
-        Optional[str],
-        typer.Option("--repo", metavar="REPO", help="Same as the REPO argument."),
-    ] = None,
-    commit: Annotated[
-        Optional[str], typer.Option(help="Review a single commit.")
-    ] = None,
-    staged: Annotated[
-        bool, typer.Option("--staged", help="Review staged changes.")
-    ] = False,
-    show_details: Annotated[
-        bool,
-        typer.Option(
-            "--details",
-            "--detail",
-            help="Also show area scores and a technology overview.",
-        ),
-    ] = False,
-) -> Result:
+def score(ctx: typer.Context) -> Result:
     """Score a repository, a commit or its staged changes.
 
     A GitHub or GitLab repository is read over HTTPS without a clone. For a
     private one on github.com or gitlab.com, put a read-only token in the
     GIT_TOKEN environment variable.
     """
-    if repo_option is not None:
-        source = ctx.get_parameter_source("repo")
-        if source is not click.core.ParameterSource.DEFAULT:
-            raise typer.BadParameter("Choose the REPO argument or --repo, not both.")
-        repo = repo_option
-    url = repo.startswith("https://")
-    if "://" in repo and not url:
-        raise typer.BadParameter("Use an HTTPS URL.", param_hint="REPO")
-    if not url and not Path(repo).is_dir():
-        raise typer.BadParameter(
-            f"Directory '{repo}' does not exist.", param_hint="REPO"
-        )
-    if commit and staged:
-        raise typer.BadParameter("Choose either --commit or --staged.")
-    if url and (commit or staged):
-        raise typer.BadParameter(
-            "--commit and --staged need a local checkout of the repository."
-        )
-    if show_details and (commit or staged):
-        raise typer.BadParameter("--details applies to a repository score.")
-    source = repo if url else str(Path(repo).resolve())
-    argv = [engine("security-score"), source, "--json"]
-    if show_details:
-        argv.append("--details")
-    if commit:
-        import re
-
-        if not re.fullmatch(r"HEAD|[0-9a-fA-F]{4,64}", commit):
-            raise typer.BadParameter("Use HEAD or a hexadecimal commit ID.")
-        argv += ["--commit", commit]
-    if staged:
-        argv.append("--staged")
-    argv += ctx.args  # last, so that a "--" among them affects only these
+    args = list(ctx.args)
+    urls = [url for arg in args for url in URL.findall(arg)]
     env = None
-    if url and urlsplit(repo).netloc not in ("github.com", "gitlab.com"):
+    if not token_allowed(urls):
         # The engine would send GIT_TOKEN to any other host that asks for it.
         env = {k: v for k, v in os.environ.items() if k != "GIT_TOKEN"}
     stderr = bytearray()
-    rc, raw = invoke(argv, env=env, stderr=stderr)
-    if ctx.args and rc == 2 and not raw.strip():
-        # The engine reports a rejected option as "security-score: error: <reason>".
-        last = stderr.decode(errors="replace").strip().rsplit("\n", 1)[-1]
-        prefix = "security-score: error: "
-        if last.startswith(prefix):
-            raise click.UsageError(
-                "The engine rejected an option: " + last[len(prefix) :], ctx
+    rc, raw = invoke(
+        [engine("security-score"), "--json", *args], env=env, stderr=stderr
+    )
+    check_usage(rc, raw, stderr)
+    if not raw.strip():
+        if urls:
+            raise ToolError(
+                "repository_unavailable",
+                last_line(stderr)
+                or "Could not read the repository. Check the URL and read access; "
+                "a private repository needs GIT_TOKEN.",
             )
-    if url and not raw.strip():
         raise ToolError(
-            "repository_unavailable",
-            "Could not read the repository. Check the URL and read access; "
-            "a private repository needs GIT_TOKEN.",
+            "score_failed",
+            last_line(stderr)
+            or "The scoring engine could not complete its assessment.",
         )
     model = json_object(raw)
     if rc not in (0, 1, 2) or model.get("analysis") not in (
@@ -291,23 +249,17 @@ def score(
         ]
         points = min(values) if values and rating != "Not assessed" else None
         data = Score(score=points, rating=rating)
-        if show_details:
+        if "overview" in model:  # the engine adds it with --details
             data.areas, data.overview = details(model)
         summary = (
             f"Score {points}/100 ({rating})"
             if points is not None
             else f"Score: {rating}"
         )
-    target = {"kind": "commit" if commit else "repository"}
-    target["url" if url else "path"] = source
-    if commit:
-        target["revision"] = commit
-    if staged:
-        target["staged"] = True
     return Result(
         status=status,
         summary=summary,
-        target=target,
+        target=target(model.get("scope") or {}),
         data=data.model_dump(),
         findings=[finding(row) for row in model.get("findings", [])],
         diagnostics=[diagnostic] if diagnostic else None,

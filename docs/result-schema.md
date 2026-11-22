@@ -22,7 +22,7 @@ Every result has `schema_version`, `tool`, `status`, and `summary`. Depending on
 | `tool` | Command name. |
 | `status` | `ok`, `partial`, or `failed`. Describes the run, not the security of the target. |
 | `summary` | One sentence for people and skills. |
-| `target` | What was checked, with a `kind` such as `repository`, `commit`, or `pull_request`. |
+| `target` | What was checked, with a `kind` such as `repository`, `change`, `commit`, or `pull_request`. |
 | `data` | The command's own result, any JSON value. Its schema is the command's `data_schema`. |
 | `findings` | List of findings. An empty list means that no findings were found. A missing field means that the command makes no statement about findings. |
 | `counts` | Findings per severity before filtering. Present whenever `findings` is. |

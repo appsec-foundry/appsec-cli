@@ -46,7 +46,6 @@ class Cli(unittest.TestCase):
     def test_tool_help_has_no_escapes(self):
         code, out, _ = self.call("security-score", "--help")
         self.assertEqual(code, 0)
-        self.assertIn("[default: .]", out)
         self.assertNotIn("\\[", out)
         self.assertIn(
             "Examples:\n  # Score the current repository\n  appsec-cli security-score .\n",
@@ -73,29 +72,47 @@ class Cli(unittest.TestCase):
     def test_global_option_after_tool(self):
         code, _, err = self.call("security-score", ".", "--format", "json")
         self.assertEqual(code, 2)
-        self.assertIn("Error: --format is a global option.", err)
-        self.assertIn("Hint: Put it before the tool name: appsec-cli --format", err)
+        self.assertIn(
+            "Error: security-score: unrecognized arguments: --format json", err
+        )
+        self.assertIn(
+            "Hint: --format is a global option. Put it before the tool name: "
+            "appsec-cli --format",
+            err,
+        )
 
-    def test_missing_path_is_a_usage_error(self):
-        code, out, err = self.call("security-score", "/nonexistent/appsec")
+    def test_engine_errors_reach_the_user(self):
+        code, out, _ = self.call(
+            "--format", "json", "security-score", "/nonexistent/appsec"
+        )
+        self.assertEqual(code, 3)
+        diagnostic = json.loads(out)["diagnostics"][0]
+        self.assertEqual(diagnostic["code"], "score_failed")
+        self.assertIn("does not exist", diagnostic["message"])
+        code, out, err = self.call("security-score", "--repo", ".", ".")
         self.assertEqual((code, out), (2, ""))
-        self.assertIn("does not exist", err)
+        self.assertIn(
+            "Error: security-score: Choose a positional repository or --repo", err
+        )
         self.assertIn("Hint: Run 'appsec-cli security-score --help'.", err)
 
-    def test_score_help_shows_remote_repositories(self):
+    def test_score_help_is_the_engine_help(self):
         code, out, _ = self.call("security-score", "--help")
         self.assertEqual(code, 0)
-        self.assertIn("HTTPS URL of a GitHub or GitLab repository", out)
-        self.assertIn("--repo REPO", out)
+        self.assertIn("Usage: appsec-cli security-score [ARGS]...", out)
         self.assertIn("GIT_TOKEN", out)
+        self.assertIn(
+            "Arguments and options go to the engine unchanged, except --analyzer,", out
+        )
+        self.assertIn("usage: security-score", out)  # the engine's own help
+        self.assertIn("  --repo REPO", out)
         self.assertIn(
             "  appsec-cli security-score https://github.com/OWNER/REPO\n", out
         )
-        self.assertIn(
-            "  appsec-cli security-score https://gitlab.com/GROUP/PROJECT\n", out
-        )
+        code, again, _ = self.call("security-score", ".", "--checks", "X", "-h")
+        self.assertEqual((code, again), (0, out))
 
-    def test_score_reads_a_remote_repository(self):
+    def test_score_passes_its_arguments_to_the_engine(self):
         from appsec_plugin_security_score import commands
 
         url = "https://github.com/OWNER/REPO"
@@ -106,7 +123,14 @@ class Cli(unittest.TestCase):
             "checks": [],
             "findings": [],
         }
-        for args in ((url,), ("--repo", url)):
+        for args in [
+            (url,),
+            ("--repo", url),
+            (".", "--checks", "JS-SQL", "--timeout", "30"),
+            ("--skip-checks", "PY-SQL"),
+            ("--commit", "HEAD", "--details"),
+            ("--checks", "X", "--", "--update"),  # after --, an argument
+        ]:
             with (
                 self.subTest(args=args),
                 patch.object(commands, "engine", return_value="engine"),
@@ -114,53 +138,91 @@ class Cli(unittest.TestCase):
                     commands, "invoke", return_value=(0, json.dumps(report).encode())
                 ) as run,
             ):
-                code, out, _ = self.call("--format", "json", "security-score", *args)
+                code, _, _ = self.call("--format", "json", "security-score", *args)
                 self.assertEqual(code, 0)
-                self.assertEqual(run.call_args.args[0], ["engine", url, "--json"])
-                target = json.loads(out)["target"]
-                self.assertEqual(target, {"kind": "repository", "url": url})
+                self.assertEqual(run.call_args.args[0], ["engine", "--json", *args])
 
-    def test_remote_repository_usage_errors(self):
+    def test_score_target_comes_from_the_engine(self):
         from appsec_plugin_security_score import commands
 
         url = "https://github.com/OWNER/REPO"
-        for args, message in [
-            ((url, "--repo", url), "Choose the REPO argument or --repo, not both."),
-            (("http://github.com/OWNER/REPO",), "Use an HTTPS URL."),
-            ((url, "--commit", "HEAD"), "need a local checkout"),
-            ((url, "--staged"), "need a local checkout"),
+        for scope, target in [
+            (
+                {
+                    "kind": "repository",
+                    "selection": "git-url",
+                    "repository": url,
+                    "revision": "0123abcd",
+                },
+                {"kind": "repository", "url": url, "revision": "0123abcd"},
+            ),
+            (
+                {
+                    "kind": "change",
+                    "selection": "git",
+                    "repository": "/src/app",
+                    "base": "aaa1",
+                    "head": "bbb2",
+                },
+                {
+                    "kind": "change",
+                    "path": "/src/app",
+                    "base": "aaa1",
+                    "head": "bbb2",
+                    "revision": "bbb2",
+                },
+            ),
         ]:
+            report = {
+                "analysis": "change-relevance",
+                "relevance": "low",
+                "checks": [],
+                "scope": scope,
+            }
             with (
-                self.subTest(args=args),
-                patch.object(commands, "invoke") as run,
+                self.subTest(scope=scope),
+                patch.object(commands, "engine", return_value="engine"),
+                patch.object(
+                    commands, "invoke", return_value=(0, json.dumps(report).encode())
+                ),
             ):
-                code, out, err = self.call("security-score", *args)
-                self.assertEqual((code, out), (2, ""))
-                self.assertIn(message, err)
-                run.assert_not_called()
+                code, out, _ = self.call("--format", "json", "security-score", url)
+                self.assertEqual(code, 0)
+                self.assertEqual(json.loads(out)["target"], target)
 
     def test_git_token_reaches_only_github_and_gitlab(self):
         from appsec_plugin_security_score import commands
 
         report = {"analysis": "change-relevance", "relevance": "low", "checks": []}
         cases = [
-            ("https://github.com/OWNER/REPO", True),
-            ("https://gitlab.com/GROUP/PROJECT", True),
-            ("https://gitlab.example.com/GROUP/PROJECT", False),
-            ("https://github.com.example.com/OWNER/REPO", False),
-            ("https://github.com@example.com/OWNER/REPO", False),
-            ("https://github.com:8443/OWNER/REPO", False),
+            (("https://github.com/OWNER/REPO",), True),
+            (("https://gitlab.com/GROUP/PROJECT",), True),
+            (("--repo=https://github.com/OWNER/REPO",), True),
+            ((".",), True),
+            (("https://gitlab.example.com/GROUP/PROJECT",), False),
+            (("https://github.com.example.com/OWNER/REPO",), False),
+            (("https://github.com@example.com/OWNER/REPO",), False),
+            (("https://github.com:8443/OWNER/REPO",), False),
+            (("http://github.com/OWNER/REPO",), False),
+            (
+                (
+                    ".",
+                    "--pr",
+                    "https://gitlab.example.com/GROUP/PROJECT/-/merge_requests/1",
+                ),
+                False,
+            ),
         ]
-        for url, forwarded in cases:
+        for args, forwarded in cases:
             with (
-                self.subTest(url=url),
+                self.subTest(args=args),
                 patch.dict(os.environ, {"GIT_TOKEN": "test-token"}),
                 patch.object(commands, "engine", return_value="engine"),
                 patch.object(
                     commands, "invoke", return_value=(0, json.dumps(report).encode())
                 ) as run,
             ):
-                code, _, _ = self.call("--format", "json", "security-score", url)
+                code, _, _ = self.call("--format", "json", "security-score", *args)
                 self.assertEqual(code, 0)
                 env = run.call_args.kwargs["env"]
                 if forwarded:
@@ -172,52 +234,34 @@ class Cli(unittest.TestCase):
     def test_unreadable_remote_repository(self):
         from appsec_plugin_security_score import commands
 
-        with (
-            patch.object(commands, "engine", return_value="engine"),
-            patch.object(commands, "invoke", return_value=(1, b"")),
-        ):
-            code, out, _ = self.call(
-                "--format", "json", "security-score", "https://github.com/OWNER/REPO"
-            )
-        self.assertEqual(code, 3)
-        diagnostic = json.loads(out)["diagnostics"][0]
-        self.assertEqual(diagnostic["code"], "repository_unavailable")
-        self.assertIn("GIT_TOKEN", diagnostic["message"])
+        def stop(message):
+            def run(argv, **kwargs):
+                kwargs["stderr"].extend(message)
+                return 1, b""
 
-    def test_score_passes_other_options_to_the_engine(self):
-        from appsec_plugin_security_score import commands
+            return run
 
-        report = {
-            "analysis": "security-assessment",
-            "overall": {"rating": "Good"},
-            "subscores": [{"score": 80}],
-            "checks": [],
-            "findings": [],
-        }
-        here = str(Path(".").resolve())
-        for args, forwarded in [
-            (
-                (".", "--checks", "JS-SQL", "--timeout", "30"),
-                ["--checks", "JS-SQL", "--timeout", "30"],
-            ),
-            (("--skip-checks", "PY-SQL"), ["--skip-checks", "PY-SQL"]),
-            (("--timeout=30", "."), ["--timeout=30"]),
-            (("--engine", "internal", "--commit", "HEAD"), ["--engine", "internal"]),
+        for message, expected in [
+            (b"", "a private repository needs GIT_TOKEN"),
+            (b"Reading sources...\nRepository not found.\n", "Repository not found."),
         ]:
             with (
-                self.subTest(args=args),
+                self.subTest(message=message),
                 patch.object(commands, "engine", return_value="engine"),
-                patch.object(
-                    commands, "invoke", return_value=(0, json.dumps(report).encode())
-                ) as run,
+                patch.object(commands, "invoke", side_effect=stop(message)),
             ):
-                code, _, _ = self.call("--format", "json", "security-score", *args)
-                self.assertEqual(code, 0)
-                argv = run.call_args.args[0]
-                self.assertEqual(argv[:3], ["engine", here, "--json"])
-                self.assertEqual(argv[-len(forwarded) :], forwarded)
+                code, out, _ = self.call(
+                    "--format",
+                    "json",
+                    "security-score",
+                    "https://github.com/OWNER/REPO",
+                )
+            self.assertEqual(code, 3)
+            diagnostic = json.loads(out)["diagnostics"][0]
+            self.assertEqual(diagnostic["code"], "repository_unavailable")
+            self.assertIn(expected, diagnostic["message"])
 
-    def test_score_keeps_its_own_engine_options(self):
+    def test_score_keeps_its_reserved_engine_options(self):
         from appsec_plugin_security_score import commands
 
         for args in [
@@ -228,10 +272,11 @@ class Cli(unittest.TestCase):
             ("--quiet",),
             ("--legacy-score",),
             ("--list-checks",),
+            ("--analyzer", "/bin/sh"),
+            ("--anal=/bin/sh",),
             ("--token-env", "OTHER_TOKEN"),
             ("--token=OTHER_TOKEN",),
-            ("--base=HEAD~1",),
-            ("--worktree",),
+            ("--hel",),
             ("--checks", "JS-SQL", "--update"),
         ]:
             with self.subTest(args=args), patch.object(commands, "invoke") as run:
@@ -240,16 +285,6 @@ class Cli(unittest.TestCase):
                 self.assertIn("cannot be passed to the engine", err)
                 self.assertIn("Hint: Run 'appsec-cli security-score --help'.", err)
                 run.assert_not_called()
-        code, _, err = self.call("security-score", ".", "--det")
-        self.assertEqual(code, 2)
-        self.assertIn("Hint: Did you mean '--details'?", err)
-
-    def test_global_option_after_an_engine_option(self):
-        code, _, err = self.call(
-            "security-score", ".", "--checks", "X", "--format", "json"
-        )
-        self.assertEqual(code, 2)
-        self.assertIn("Error: --format is a global option.", err)
 
     def test_engine_usage_error_is_a_usage_error(self):
         from appsec_plugin_security_score import commands
@@ -267,9 +302,7 @@ class Cli(unittest.TestCase):
         ):
             code, out, err = self.call("security-score", ".", "--bogus")
         self.assertEqual((code, out), (2, ""))
-        self.assertIn(
-            "Error: The engine rejected an option: unrecognized arguments: --bogus", err
-        )
+        self.assertIn("Error: security-score: unrecognized arguments: --bogus", err)
 
     def test_score_details(self):
         from appsec_plugin_security_score import commands
@@ -307,17 +340,17 @@ class Cli(unittest.TestCase):
                 }
             ],
         }
+        plain = {k: v for k, v in report.items() if k != "overview"}
         with (
             patch.object(commands, "engine", return_value="engine"),
             patch.object(
                 commands, "invoke", return_value=(0, json.dumps(report).encode())
-            ) as run,
+            ),
         ):
             code, out, _ = self.call(
                 "--format", "json", "security-score", ".", "--details"
             )
             self.assertEqual(code, 1)
-            self.assertIn("--details", run.call_args.args[0])
             data = json.loads(out)["data"]
             self.assertEqual(
                 data["areas"][1],
@@ -336,13 +369,35 @@ class Cli(unittest.TestCase):
             )
             self.assertIn("  AI & agents          —  Not applicable\n", out)
             self.assertIn("Findings · 1", out)
+        with (
+            patch.object(commands, "engine", return_value="engine"),
+            patch.object(
+                commands, "invoke", return_value=(0, json.dumps(plain).encode())
+            ),
+        ):
             code, out, _ = self.call("--format", "json", "security-score", ".")
             data = json.loads(out)["data"]
             self.assertEqual((data["areas"], data["overview"]), (None, None))
-            self.assertNotIn("--details", run.call_args.args[0])
-        code, _, err = self.call("security-score", ".", "--details", "--staged")
+
+    def test_analyzer_export_passes_its_arguments(self):
+        from appsec_plugin_appsec_analyzer import commands
+
+        args = ("--assessment", "a", "--output", "b", "--formats", "sarif")
+        with (
+            patch.object(commands, "engine", return_value="engine"),
+            patch.object(commands, "invoke", return_value=(0, b"")) as run,
+        ):
+            code, out, _ = self.call(
+                "--format", "json", "appsec-analyzer", "export", *args
+            )
+        self.assertEqual(code, 0)
+        self.assertEqual(run.call_args.args[0], ["engine", "export", *args])
+        self.assertEqual(json.loads(out)["summary"], "Assessment exported.")
+        code, _, err = self.call("appsec-analyzer", "export", "--bogus")
         self.assertEqual(code, 2)
-        self.assertIn("--details applies to a repository score.", err)
+        self.assertIn(
+            "Error: appsec-analyzer export: the following arguments are required", err
+        )
 
     def test_disabled_tool(self):
         self.config.write_text('[plugins]\ndisabled = ["appsec-verifier"]\n')
@@ -383,9 +438,14 @@ class Cli(unittest.TestCase):
         self.assertEqual(first["run"], "appsec-cli security-score .")
         code, out, _ = self.call("tools", "describe", "security-score")
         self.assertEqual(code, 0)
-        self.assertIn("--commit TEXT", out)
-        self.assertIn("REPO", out)
+        self.assertIn("Arguments go to the engine unchanged, except --analyzer", out)
         self.assertIn("Formats: table, json, sarif", out)
+        code, out, _ = self.call(
+            "--format", "json", "tools", "describe", "security-score"
+        )
+        definition = json.loads(out)["definitions"][0]
+        self.assertEqual(definition["parameters"], [])
+        self.assertIn("--update", definition["forwards_except"])
         code, _, err = self.call("--format", "sarif", "tools", "list")
         self.assertEqual(code, 2)
         self.assertIn("Hint: Use --format json.", err)

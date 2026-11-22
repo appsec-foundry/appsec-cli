@@ -61,25 +61,17 @@ The example tools come from appsec-foundry. Each one is a Python adapter in [too
 | `security-score [REPO]` | Scores a local repository, or a GitHub or GitLab repository by its HTTPS URL. With `--commit SHA` or `--staged`, rates how security-relevant a change is. `--details` adds area scores and a technology overview. | [security-score](https://github.com/appsec-foundry/appsec-tools/tree/main/security-score) 0.3.3 | No |
 | `analyze-threats [REPO]` | Threat review of `HEAD`, a commit (`--commit SHA`), or a GitHub pull request (`--pr URL`). Reports threats with cited evidence, existing controls, and open questions. | [appsec-analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | Yes |
 | `appsec-analyzer repo-profile [REPO]` | Size, languages, and build manifests of a repository. | appsec-analyzer 0.1.0a0 | No |
-| `appsec-analyzer export ASSESSMENT DESTINATION` | Converts a saved Analyzer assessment to SARIF, or to HTML with `--format html` (needs Pandoc). | appsec-analyzer 0.1.0a0 | No |
+| `appsec-analyzer export --assessment DIR --output DIR` | Converts a saved Analyzer assessment, for example to SARIF with `--formats sarif` or to HTML with `--formats html` (needs Pandoc). | appsec-analyzer 0.1.0a0 | No |
 | `appsec-verifier export VERIFICATION_YAML` | Checks a finished AppSec Verifier report and exports its findings with verdict and confidence. | Report schema in the adapter | No |
 
 ```sh
 appsec-cli security-score .
 appsec-cli security-score https://github.com/OWNER/REPO
 appsec-cli analyze-threats --pr https://github.com/OWNER/REPO/pull/42
-appsec-cli appsec-analyzer export ~/assessments/app ~/exports/app
+appsec-cli appsec-analyzer export --assessment ~/assessments/app --output ~/exports/app --formats sarif
 ```
 
 For a private repository on github.com or gitlab.com, `security-score` uses a read-only token from `GIT_TOKEN`. Other hosts don't receive it.
-
-`security-score` passes options it does not list in its help on to the engine unchanged, for example `--checks`, `--skip-checks`, or `--timeout`:
-
-```sh
-appsec-cli security-score . --skip-checks JS-RANDOM --timeout 90
-```
-
-Engine options that change the output format, the assessed target, the token handling, or the installed engine version stay with appsec-cli and are refused.
 
 ## For development teams
 
@@ -104,11 +96,14 @@ appsec-cli security-score --help   # options and examples of one command
 
 ### Global options
 
-Global options go before the tool name, the tool's own options after it:
+Global options go before the tool name. Everything after the tool name goes to the tool's engine unchanged, and `appsec-cli TOOL --help` shows the engine's own options:
 
 ```sh
 appsec-cli --format json --output report.json security-score . --commit HEAD
+appsec-cli security-score . --skip-checks JS-RANDOM --timeout 90
 ```
+
+appsec-cli holds back only the engine options that would make the result unreadable, replace the engine version of the release, start another program, or choose which secret the engine sends. It refuses them and their abbreviations with exit code 2. `analyze-threats` and `appsec-verifier` run their own code instead of an engine and keep their own options.
 
 | Option | Effect |
 | --- | --- |
@@ -197,7 +192,7 @@ A tool that prints JSON needs only a `tool.toml`:
 ```toml
 # tools/repo-inventory/tool.toml
 engine = "appsec-analyzer==0.1.0a0"
-args = ["repo-profile", "{repo}", "--json"]
+args = ["repo-profile", "--json"]
 ```
 
 After the next release, teams run `appsec-cli repo-inventory .` and get the engine's JSON unchanged under `data`.

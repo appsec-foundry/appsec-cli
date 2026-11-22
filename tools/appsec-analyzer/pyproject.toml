@@ -23,10 +23,10 @@ examples = [
 ]
 
 [tool.appsec-cli.commands.export]
-summary = "Export a saved assessment as SARIF or HTML."
+summary = "Export a saved assessment, for example as SARIF or HTML."
 examples = [
-  { run = "appsec-analyzer export ./assessment ./out", what = "Export a saved assessment as SARIF" },
-  { run = "appsec-analyzer export ./assessment ./out --format html", what = "Export it as HTML (needs Pandoc)" },
+  { run = "appsec-analyzer export --assessment ./assessment --output ./out --formats sarif", what = "Export a saved assessment as SARIF" },
+  { run = "appsec-analyzer export --assessment ./assessment --output ./out --formats html", what = "Export it as HTML (needs Pandoc)" },
 ]
 
 [tool.appsec-cli.source]

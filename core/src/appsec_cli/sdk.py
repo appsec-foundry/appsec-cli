@@ -65,6 +65,7 @@ class Command:
     api_version: int = 1
     forward_except: tuple[str, ...] | None = None
     list_findings: bool = False
+    engine_help: tuple[str, ...] | None = None
 
     @property
     def data_adapter(self):
@@ -80,11 +81,14 @@ def command(
     render_data: Callable[[Any], list[str]] | None = None,
     list_findings: bool = False,
     forward_except: tuple[str, ...] | None = None,
+    engine_help: tuple[str, ...] | None = None,
 ):
     """Declare one typed command. Its signature becomes the CLI and its help.
 
-    With forward_except, options the command does not declare reach the handler
-    in ctx.args for its engine, except the listed engine options.
+    With forward_except, the command is a wrapper: it declares no arguments of
+    its own, and everything after its name reaches the handler in ctx.args for
+    the engine, except the listed engine options. engine_help is the console
+    script and arguments that print the engine's help for --help.
     """
     if fail_on not in (None, "never", *SEVERITIES):
         raise ValueError("unknown severity threshold")
@@ -101,6 +105,7 @@ def command(
             if forward_except is not None
             else None,
             list_findings=list_findings,
+            engine_help=tuple(engine_help) if engine_help else None,
         )
 
     return decorate

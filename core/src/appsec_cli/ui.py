@@ -225,6 +225,12 @@ def describe(result, style):
         if command["help"]:
             lines.append("  " + clean(command["help"]))
         lines += columns(rows)
+        if "forwards_except" in command:
+            kept = ", ".join(command["forwards_except"])
+            lines.append(
+                "  Arguments go to the engine unchanged"
+                + (f", except {clean(kept)}." if kept else ".")
+            )
         lines.append(style("  Formats: " + ", ".join(command["formats"]), "muted"))
     return "\n".join(lines)
 

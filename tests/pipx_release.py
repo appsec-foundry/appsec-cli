@@ -169,7 +169,7 @@ def main():
             shutil.copy(source / "pyproject.toml", tools / name)
         (tools / "repo-inventory").mkdir()
         (tools / "repo-inventory/tool.toml").write_text(
-            'engine = "appsec-analyzer==0.1.0a0"\nargs = ["repo-profile", "{repo}", "--json"]\n'
+            'engine = "appsec-analyzer==0.1.0a0"\nargs = ["repo-profile", "--json"]\n'
         )
         (old_suite / "pyproject.toml").write_text(
             (ROOT / "pyproject.toml")

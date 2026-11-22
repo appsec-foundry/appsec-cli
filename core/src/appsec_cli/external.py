@@ -2,6 +2,7 @@
 
 import json
 import os
+import re
 import selectors
 import signal
 import subprocess
@@ -9,7 +10,11 @@ import sysconfig
 import time
 from pathlib import Path
 
+import click
+
 from .sdk import ToolError
+
+USAGE = re.compile(r"([\w.-]+(?: [\w.-]+)*): error: (.+)")
 
 
 def engine(name):
@@ -89,6 +94,27 @@ def invoke(
         proc.stderr.close()
 
 
+def last_line(stderr):
+    """The last line an engine wrote to stderr: usually why it stopped."""
+    lines = bytes(stderr).decode(errors="replace").strip().splitlines()
+    return lines[-1].strip() if lines else ""
+
+
+def check_usage(code, out, stderr):
+    """Raise a usage error when an argparse engine refused its arguments.
+
+    argparse exits with 2, prints nothing on stdout and ends its error output
+    with "PROG: error: REASON".
+    """
+    found = (
+        USAGE.fullmatch(last_line(stderr)) if code == 2 and not out.strip() else None
+    )
+    if found:
+        raise click.UsageError(
+            f"{found[1]}: {found[2]}", click.get_current_context(silent=True)
+        )
+
+
 def json_object(raw):
     try:
         result = json.loads(raw)
@@ -126,9 +152,13 @@ class ExternalTool:
                     "binary_version_unsupported",
                     "The installed engine does not report a supported version.",
                 )
-        code, raw = invoke([executable, *args], cap=cap, timeout=timeout)
+        stderr = bytearray()
+        code, raw = invoke([executable, *args], cap=cap, timeout=timeout, stderr=stderr)
         if code:
+            check_usage(code, raw, stderr)
             raise ToolError(
-                "tool_failed", "The external engine could not complete the command."
+                "tool_failed",
+                last_line(stderr)
+                or "The external engine could not complete the command.",
             )
         return json_object(raw)

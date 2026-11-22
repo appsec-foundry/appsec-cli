@@ -21,6 +21,7 @@ NAME = re.compile(r"[a-z][a-z0-9]*(?:-[a-z0-9]+)*\Z")
 RESERVED = {"tools", "schema", "update"}
 PACKAGE = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9._-]*[A-Za-z0-9])?\Z")
 COMMIT = re.compile(r"[0-9a-f]{40}(?:[0-9a-f]{24})?\Z")
+OPTION = re.compile(r"-[A-Za-z0-9]\Z|--[A-Za-z0-9][A-Za-z0-9-]*\Z")
 MAX_EXAMPLES = 5
 MAX_LINE = 100
 
@@ -132,6 +133,7 @@ class Manifest:
     examples: tuple = ()
     enabled: bool = True
     source: Source | None = None
+    forward_except: tuple[str, ...] = ()
 
     @property
     def version(self):
@@ -157,10 +159,11 @@ class Manifest:
             "examples",
             "enabled",
             "source",
+            "forward_except",
         } or not isinstance(doc.get("engine"), str):
             raise ValueError(
                 f"{name}: expected engine and optional args, binary, description,"
-                " examples, enabled or source"
+                " examples, enabled, source or forward_except"
             )
         engine = Requirement(doc["engine"])
         pins = list(engine.specifier)
@@ -173,11 +176,20 @@ class Manifest:
         ):
             raise ValueError(f"{name}: pin the engine as package==version")
         Version(pins[0].version)
-        args = doc.get("args", ["{repo}", "--json"])
+        args = doc.get("args", ["--json"])
         if not isinstance(args, list) or not all(
             isinstance(arg, str) and "\0" not in arg for arg in args
         ):
             raise ValueError(f"{name}: args must be an array of strings")
+        if "{repo}" in args:
+            raise ValueError(
+                f"{name}: remove {{repo}}; the user's arguments follow args"
+            )
+        kept = doc.get("forward_except", [])
+        if not isinstance(kept, list) or not all(
+            isinstance(option, str) and OPTION.fullmatch(option) for option in kept
+        ):
+            raise ValueError(f"{name}: forward_except lists option names")
         binary = doc.get("binary")
         if binary is not None and (
             not isinstance(binary, str)
@@ -190,4 +202,14 @@ class Manifest:
         found = tuple(examples(doc.get("examples"), name))
         on = enabled(doc.get("enabled", True), name)
         built = source(doc["source"], name, engine.name) if "source" in doc else None
-        return cls(name, engine, tuple(args), binary, description, found, on, built)
+        return cls(
+            name,
+            engine,
+            tuple(args),
+            binary,
+            description,
+            found,
+            on,
+            built,
+            tuple(kept),
+        )

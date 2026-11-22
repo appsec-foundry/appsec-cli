@@ -2,8 +2,6 @@
 
 from dataclasses import dataclass
 from importlib import metadata
-from pathlib import Path
-from typing import Annotated
 
 import typer
 from pydantic import JsonValue
@@ -36,25 +34,14 @@ def from_manifest(spec):
             "binary_version_unsupported", f"This module requires {spec.engine}."
         )
 
-    def execute(args):
-        payload = ExternalTool(binary).json(args)
+    def wrapper(ctx: typer.Context):
+        payload = ExternalTool(binary).json([*spec.args, *ctx.args])
         return Result(summary=f"{spec.name} completed.", data=payload)
 
-    def with_repo(
-        repo: Annotated[
-            Path,
-            typer.Argument(help="Repository directory.", exists=True, file_okay=False),
-        ] = Path("."),
-    ):
-        return execute(
-            [str(repo.resolve()) if arg == "{repo}" else arg for arg in spec.args]
-        )
-
-    def without_repo():
-        return execute(list(spec.args))
-
-    handler = with_repo if "{repo}" in spec.args else without_repo
-    handler.__doc__ = spec.description
-    return command(data=dict[str, JsonValue], engine_distribution=spec.engine.name)(
-        handler
-    )
+    wrapper.__doc__ = spec.description
+    return command(
+        data=dict[str, JsonValue],
+        engine_distribution=spec.engine.name,
+        forward_except=spec.forward_except,
+        engine_help=(binary, *spec.args, "--help"),
+    )(wrapper)
