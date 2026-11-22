@@ -24,7 +24,9 @@ class ManifestTests(unittest.TestCase):
         return Manifest.read(self.path)
 
     def test_one_field_and_version_check(self):
-        spec = self.read('engine = "appsec-analyzer==0.1.0a0"')
+        # The suite itself is an installed package with one console script.
+        suite = f"appsec-cli=={metadata.version('appsec-cli')}"
+        spec = self.read(f'engine = "{suite}"')
         self.assertEqual(spec.name, "inventory")
         self.assertEqual(spec.args, ("--json",))
         with patch(
@@ -35,13 +37,9 @@ class ManifestTests(unittest.TestCase):
             self.assertEqual(handler(SimpleNamespace(args=[repo])).data, {"items": 3})
             call.assert_called_once_with(["--json", repo])
         with self.assertRaises(ToolError):
-            from_manifest(self.read('engine = "appsec-analyzer==0.0.1"'))
+            from_manifest(self.read('engine = "appsec-cli==0.0.0.dev0"'))
         with self.assertRaises(ToolError):
-            from_manifest(
-                self.read(
-                    'engine = "appsec-analyzer==0.1.0a0"\nbinary = "another-program"'
-                )
-            )
+            from_manifest(self.read(f'engine = "{suite}"\nbinary = "another-program"'))
 
     def test_invalid_definitions(self):
         for text in (

@@ -16,14 +16,18 @@ install: build
 		pipx install --force --pip-args=--force-reinstall appsec-cli
 	@echo "Installed. Run: appsec-cli"
 
-# Check a release before you publish it: audit, versions, contract and pipx tests.
+# Check a release before you publish it: audit, versions, the tests of the core and
+# of every tool, and the pipx tests over all tools of the release.
 release-check:
 	$(PYTHON) scripts/audit_lock.py
 	$(MAKE) build RELEASE=--release
 	$(VENV) -m pip install --no-index --no-deps --find-links dist --require-hashes -r dist/release.lock
 	$(VENV) -m pip check
 	$(VENV) -m unittest discover -s tests
-	$(VENV) tests/pipx_release.py $(SOURCE_ARGS) --wheels $(WHEELS)
+	for tests in tools/[!_]*/tests; do \
+		[ ! -d "$$tests" ] || $(VENV) -m unittest discover -s "$$tests" || exit 1; \
+	done
+	$(VENV) tests/pipx_release.py --wheels $(WHEELS)
 
 # Build the wheels of the suite and its engines in dist/.
 build:

@@ -182,7 +182,7 @@ def inspect(component: str) -> Result:
 
 ## Test a tool
 
-1. Adapt the template test and run it with the Python of an environment where the adapter is installed:
+1. Adapt the template test and run it with the Python of an environment where the adapter is installed. Like the template test, call the handler directly; the core tests cover the CLI around it, such as help, usage errors, reserved engine options and exit codes.
 
    ```sh
    python -m unittest discover -s tools/policy-check/tests
@@ -197,7 +197,7 @@ def inspect(component: str) -> Result:
 
    Until the tool is part of a release, enable it under `[plugins].additional` in your [user configuration](../README.md#configuration).
 3. Check `appsec-cli tools list --check`, `appsec-cli --format json tools describe NAME`, one real call, and one error case.
-4. `make release-check` builds the whole release with the new tool and runs the contract tests.
+4. `make release-check` builds the whole release with the new tool, runs the core tests and the tests in each `tools/NAME/tests`, installs the release with pipx and checks every tool through the installed CLI.
 
 After you add or rename an entry point, reinstall the package; entry points are read from the installed metadata.
 
