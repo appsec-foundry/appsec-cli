@@ -1,4 +1,4 @@
-PYTHON ?= python3
+PYTHON ?= python3.12
 # Each tool names the Git source of its engine. ENGINE_SOURCES builds engines from
 # another Git URL or a local checkout instead, as space-separated PACKAGE=URL
 # pairs; the build still checks out the commit pinned in the tool's directory.
@@ -6,7 +6,7 @@ ENGINE_SOURCES ?=
 SOURCE_ARGS := $(foreach s,$(ENGINE_SOURCES),--source $(s))
 WHEELS ?= .wheelhouse
 VENV := .venv/bin/python
-LOCK := requirements-linux-py310.lock
+LOCK := requirements-linux-py312.lock
 INSTALL = $(PYTHON) scripts/install.py --lock $(LOCK) --wheels $(WHEELS) $(SOURCE_ARGS)
 
 .PHONY: install release-check test build

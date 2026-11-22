@@ -187,7 +187,7 @@ def main():
                 "team-score": from_template("team-score", version="0.1.0"),
             },
         )
-        run("pipx", "install", "appsec-cli")
+        run("pipx", "install", "--python", sys.executable, "appsec-cli")
         cli = work / "bin/appsec-cli"
         cfg = config / "config.toml"
 

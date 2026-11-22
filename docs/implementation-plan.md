@@ -125,7 +125,7 @@ Die Analyse-Engine bestimmt Revision, Kontext und Bewertungsschema. Der gewählt
 |---|---|
 | E1 / E2 | Pydantic 2 validiert den Vertrag. CLI und mitgelieferte Texte sind englisch. |
 | E3 | Zugangsdaten kommen aus der Anbieteranmeldung oder der Runner-Umgebung. |
-| E4 | Linux mit Python 3.10 getestet. macOS und WSL benötigen eine eigene Abnahme. |
+| E4 | Linux mit Python 3.12 getestet. macOS und WSL benötigen eine eigene Abnahme. |
 | E5 | Claude Code, Codex CLI, Anthropic API und LiteLLM sind angebunden. Automatisierte Tests nutzen Host-Doubles. Die Freigabe mit realen Hostkonten steht aus. |
 | E7 | CI kann eine Prüfkonfiguration aus dem vertrauenswürdigen Zielstand auswählen. Die Ausführung auf Fork-PRs entscheidet der jeweilige Runner-Betreiber. |
 | E8 | Wheelhouse getestet. Der für Teams vorkonfigurierte Release-Index und der Veröffentlichungszeitpunkt sind offen. |

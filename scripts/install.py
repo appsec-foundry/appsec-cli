@@ -422,7 +422,8 @@ class Installer:
 
     def dependencies(self):
         lock, wheels = self.args.lock, self.args.wheels
-        self.run([sys.executable, "-m", "venv", ".venv"], "creating .venv")
+        # --clear: an environment of another Python version cannot be reused.
+        self.run([sys.executable, "-m", "venv", "--clear", ".venv"], "creating .venv")
         self.run(
             [VENV, "-m", "pip", "download", "-q", "--only-binary=:all:"]
             + ["--require-hashes", "-r", lock, "-d", wheels],
@@ -466,6 +467,8 @@ class Installer:
             [
                 "pipx",
                 "install",
+                "--python",
+                sys.executable,
                 "--force",
                 "--pip-args=--force-reinstall",
                 "appsec-cli",

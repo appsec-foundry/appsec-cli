@@ -7,7 +7,7 @@
 [![SARIF](https://img.shields.io/badge/SARIF-v2.1.0-blue.svg)](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
 
 > [!NOTE]
-> **Alpha.** Early version, actively developed. Tested on Linux x86_64 with Python 3.10 and Git.
+> **Alpha.** Early version, actively developed. Tested on Linux x86_64 with Python 3.12 and Git.
 
 appsec-cli gives development teams the security tools of their AppSec team in one command-line tool. Developers install it once and call every tool the same way, in the terminal, in CI, or from a coding agent. The AppSec team decides which tools go into a release.
 
@@ -24,7 +24,7 @@ appsec-cli has no server and no package index of its own. The tools run on the d
 
 ## Quick start
 
-You need Linux x86_64, Python 3.10, Git, [pipx](https://pipx.pypa.io/stable/), access to PyPI, and read access to the appsec-foundry repositories on GitHub.
+You need Linux x86_64, Python 3.12, Git, [pipx](https://pipx.pypa.io/stable/), access to PyPI, and read access to the appsec-foundry repositories on GitHub.
 
 1. **Install the example setup:**
 
@@ -161,7 +161,7 @@ pip install --require-hashes -r install.lock
 appsec-cli --format json --output report.json --fail-on high security-score .
 ```
 
-Install a fixed release with the `install.lock` that your AppSec team publishes with it, so pip checks every package against its hash. The release supports Linux x86_64 with Python 3.10.
+Install a fixed release with the `install.lock` that your AppSec team publishes with it, so pip checks every package against its hash. The release supports Linux x86_64 with Python 3.12.
 
 Always pass `--format json` or `sarif` in CI. The exit code is the job result: 1 means a finding reached the threshold, 3 means the check is incomplete or failed. Keep `report.json` as a job artifact, even when the job fails.
 
@@ -225,7 +225,7 @@ cp -r tools/_template tools/policy-check
 
 ## Release and distribution
 
-A release is a set of wheels with fixed versions. Build and check it on Linux x86_64 with Python 3.10, Git, and pipx:
+A release is a set of wheels with fixed versions. Build and check it on Linux x86_64 with Python 3.12, Git, and pipx:
 
 ```sh
 make release-check

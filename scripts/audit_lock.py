@@ -10,7 +10,7 @@ def main():
     root = Path(__file__).resolve().parents[1]
     rows = [
         row
-        for lock in ("requirements-linux-py310.lock", "requirements-dev.lock")
+        for lock in ("requirements-linux-py312.lock", "requirements-dev.lock")
         for row in (root / lock).read_text().splitlines()
     ]
     for row in rows:

@@ -49,4 +49,4 @@ variables:
 ## Limits
 
 - A merge request can change `.gitlab-ci.yml` and remove these jobs. If the check must run for every merge request, start it from a pipeline your AppSec team controls, such as a pipeline execution policy, and require successful pipelines before merging.
-- The release supports Linux x86_64 with Python 3.10, so the jobs use `python:3.10`, pinned by digest. Update the digest when you publish a release.
+- The release supports Linux x86_64 with Python 3.12, so the jobs use `python:3.12`, pinned by digest. Update the digest when you publish a release.

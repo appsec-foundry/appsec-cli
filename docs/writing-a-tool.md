@@ -73,7 +73,7 @@ A tool written in another language can ship its executable as a resource in plat
 Every package of a release is pinned. An engine comes from one of two places:
 
 - **A Git source in the tool's directory.** The build clones the repository, checks out the commit, and builds the engine wheel from it.
-- **The lock file** [requirements-linux-py310.lock](../requirements-linux-py310.lock), for an engine published on PyPI. Add it with its wheel hash; `make release-check` audits it against PyPI.
+- **The lock file** [requirements-linux-py312.lock](../requirements-linux-py312.lock), for an engine published on PyPI. Add it with its wheel hash; `make release-check` audits it against PyPI.
 
 A `tool.toml` names the source in a `[source]` table. The package is its `engine`:
 

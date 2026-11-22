@@ -19,7 +19,7 @@ PYTHON = [sys.executable, "-c"]
 class Installer(unittest.TestCase):
     def installer(self, log=None, **changes):
         args = dict(
-            lock="requirements-linux-py310.lock",
+            lock="requirements-linux-py312.lock",
             wheels=".wheelhouse",
             source=[],
             release=False,
