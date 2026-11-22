@@ -169,7 +169,7 @@ Only findings decide the exit code, not the score. To require a minimum score, c
 
 A `.appsec-cli.toml` in the checked-out change can only make the threshold stricter. For pull requests from forks, pass the configuration of the target branch with `--config`.
 
-[GitLab CI](docs/gitlab-ci.md) has a template for GitLab pipelines: a gate on the changes of a merge request, the score of the default branch, and a threat review on request.
+[GitLab CI](docs/gitlab-ci.md) has a template for GitLab pipelines: a gate on the changes of a merge request and the score of the default branch.
 
 ### Team CLIs and coding agents
 
