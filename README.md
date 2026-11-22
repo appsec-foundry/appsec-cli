@@ -11,6 +11,8 @@
 
 appsec-cli bundles an AppSec team's security tools into one command-line tool for development teams. Developers install one package and get every tool in the release. All tools take the same global options, and with `--format json` they return the same result format and exit codes, so CI jobs and coding agents can call every tool the same way. The AppSec team decides which tools and engine versions go into a release. Adding a tool does not require changes to the CLI.
 
+![Start page of appsec-cli in the terminal: the tools of the example setup with an example call each, and the next steps](docs/images/start-page.png)
+
 This repository contains an example setup built on tools from [appsec-foundry](https://github.com/appsec-foundry): [Security Score](https://github.com/appsec-foundry/appsec-tools/tree/main/security-score), [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer), and [AppSec Verifier](https://github.com/appsec-foundry/appsec-verifier). Replace them with your own tools or add more.
 
 appsec-cli has no server and no package index of its own. The tools run on the developer's machine or the CI runner. Of the example tools, only `analyze-threats` sends source code to a model provider; see [Data use](#model-profiles-and-data-use).
