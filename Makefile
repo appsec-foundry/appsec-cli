@@ -21,7 +21,7 @@ install: build
 release-check:
 	$(PYTHON) scripts/audit_lock.py
 	$(MAKE) build RELEASE=--release
-	$(VENV) -m pip install --no-index --no-deps --find-links dist --require-hashes -r dist/release.lock
+	$(VENV) -m pip install --no-index --no-deps --force-reinstall --find-links dist --require-hashes -r dist/release.lock
 	$(VENV) -m pip check
 	$(VENV) -m unittest discover -s tests
 	for tests in tools/[!_]*/tests; do \
