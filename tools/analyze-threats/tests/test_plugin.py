@@ -15,6 +15,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
 
+import typer
 from appsec_cli import ToolError
 from appsec_plugin_analyze_threats import commands, hosts
 from appsec_analyzer.engine import initialize
@@ -182,6 +183,18 @@ class Threats(unittest.TestCase):
                     },
                 )
                 self.assertNotIn("uncommitted", str(docs))
+                result = commands.analyze.handler(repo, base=base)
+                self.assertEqual(
+                    (result.target["kind"], result.data["base"]), ("change", base)
+                )
+                docs = transport.call_args.args[2]["documents"]
+                self.assertIn(
+                    ("before", "app.py"), {(r["side"], r["path"]) for r in docs}
+                )
+                with self.assertRaises(typer.BadParameter):
+                    commands.analyze.handler(
+                        pr="https://github.com/team/project/pull/1", base=base
+                    )
                 from appsec_analyzer import review_sources
 
                 with (

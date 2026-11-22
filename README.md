@@ -65,7 +65,7 @@ The example tools come from appsec-foundry. Each one is a Python adapter in [too
 | Command | What it does | Built on | Model calls |
 | --- | --- | --- | --- |
 | `security-score [REPO]` | Scores a local repository or a GitHub or GitLab repository by its HTTPS URL. With `--commit SHA` or `--staged`, it rates how security-relevant a change is. | [Security Score](https://github.com/appsec-foundry/appsec-tools/tree/main/security-score) 0.3.3 | No |
-| `analyze-threats [REPO]` | Threat review of `HEAD`, a commit (`--commit SHA`), or a GitHub pull request (`--pr URL`), with cited evidence. | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | Yes |
+| `analyze-threats [REPO]` | Threat review of `HEAD`, a commit (`--commit SHA`), the changes since a base commit (`--base SHA`), or a GitHub pull request (`--pr URL`), with cited evidence. | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | Yes |
 | `appsec-analyzer repo-profile [REPO]` | Size, languages, and build manifests of a repository. | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | No |
 | `appsec-analyzer export --assessment DIR --output DIR` | Converts a saved Analyzer assessment, for example to SARIF (`--formats sarif`) or HTML (`--formats html`, needs Pandoc). | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | No |
 | `appsec-verifier export VERIFICATION_YAML` | Checks a finished AppSec Verifier report and exports its findings with verdict and confidence. | Report schema of [AppSec Verifier](https://github.com/appsec-foundry/appsec-verifier) | No |

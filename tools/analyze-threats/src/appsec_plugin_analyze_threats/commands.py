@@ -108,6 +108,12 @@ def analyze(
         Optional[str],
         typer.Option(help="Commit SHA or HEAD; compare to its first parent."),
     ] = None,
+    base: Annotated[
+        Optional[str],
+        typer.Option(
+            help="Base commit SHA; review all changes from it to HEAD or --commit."
+        ),
+    ] = None,
     pr: Annotated[
         Optional[str], typer.Option(help="GitHub pull request HTTPS URL.")
     ] = None,
@@ -118,16 +124,25 @@ def analyze(
         Optional[str], typer.Option(help="Model name or configured gateway alias.")
     ] = None,
 ) -> Result:
-    """Assess threats in the committed HEAD, one commit or a pull request, with cited evidence."""
+    """Assess threats in the committed HEAD, a commit, the changes since a base commit or a pull request, with cited evidence."""
     from appsec_analyzer.engine import initialize
 
     initialize()
     from appsec_analyzer import review_sources
 
-    if pr and (commit or repo != Path(".")):
+    if pr and (commit or base or repo != Path(".")):
         raise typer.BadParameter(
-            "Use --pr alone or select a local repository and commit."
+            "Use --pr alone or select a local repository, commit and base."
         )
+    kind = (
+        "pull_request"
+        if pr
+        else "change"
+        if base
+        else "commit"
+        if commit
+        else "repository"
+    )
     selected = profile or os.getenv("APPSEC_CLI_PROFILE") or "claude"
     defaults = {
         "claude": "sonnet",
@@ -160,8 +175,11 @@ def analyze(
         workspace = review_sources.checkout(review, origin)
     with workspace as root:
         head = origin["head"] if origin else source.revision(root, commit or "HEAD")
-        base = origin["base"] if origin else None
-        if commit:
+        if origin:
+            base = origin["base"]
+        elif base:
+            base = source.revision(root, base)
+        elif commit:
             parents = (
                 source.git(root, "cat-file", "-p", head)
                 .split(b"\n\n", 1)[0]
@@ -170,10 +188,10 @@ def analyze(
             base = next(
                 (p[7:].decode() for p in parents if p.startswith(b"parent ")), None
             )
-        change = bool(pr or commit)
+        change = bool(pr or commit or base)
         docs, gaps, cleaner, missed = source.snapshot(root, head, base, change=change)
         scope = {
-            "kind": "pull_request" if pr else "commit" if commit else "repository",
+            "kind": kind,
             "revision": head,
             "base": base,
         }
