@@ -314,6 +314,23 @@ class Cli(unittest.TestCase):
                     )
                 self.assertEqual("warnings" in json.loads(out), warned)
 
+    def test_update_says_what_it_does_in_the_terminal(self):
+        from appsec_cli import cli
+
+        done = subprocess.CompletedProcess([], 0, "", "")
+        with (
+            patch.object(cli.shutil, "which", return_value="pipx"),
+            patch.object(cli.updates, "pipx_metadata", return_value={}),
+            patch.object(cli, "installed", return_value=("0.1.0", {})),
+            patch.object(cli.subprocess, "run", return_value=done),
+        ):
+            code, out, err = self.call("update", "--yes")
+            self.assertEqual(code, 0)
+            self.assertEqual(err, "Updating appsec-cli with pipx …\n")
+            self.assertTrue(out.startswith("No release newer than appsec-cli 0.1.0"))
+            code, _, err = self.call("--format", "json", "update", "--yes")
+            self.assertEqual((code, err), (0, ""))
+
     def test_update_reads_the_versions_outside_the_project(self):
         # A project file this version cannot read must not stop the update.
         project = tempfile.TemporaryDirectory()

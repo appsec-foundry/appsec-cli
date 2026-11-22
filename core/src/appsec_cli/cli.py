@@ -594,6 +594,9 @@ def update(ctx, yes):
             raise UsageError("Confirm the update.", "Run 'appsec-cli update --yes'.")
         if not click.confirm(f"Update appsec-cli {suite} with pipx?", default=True):
             return 0
+    if options(ctx)["format"] == "table":
+        line = style_for(ctx)("Updating appsec-cli with pipx …", "muted")
+        print(line, file=sys.stderr)
     # pip would ask for a login on the terminal, where the captured output hides
     # the question; without a terminal it fails at once instead.
     try:

@@ -137,7 +137,11 @@ class ResultView(unittest.TestCase):
             text, "appsec-cli 0.1.0 → 0.2.0\n    a 1.0 → 1.1\n  - c\n  + d 0.1"
         )
         same = changes({"before": before, "after": before}, PLAIN)
-        self.assertEqual(same, "appsec-cli 0.1.0 is up to date.")
+        self.assertEqual(
+            same,
+            "No release newer than appsec-cli 0.1.0 found.\nIf you expected one,"
+            " check the network connection and the login to the package index.",
+        )
 
     def test_overview_and_examples(self):
         example = {"run": "appsec-cli security-score .", "what": "Score it"}

@@ -191,8 +191,17 @@ def changes(data, style):
     before, after = data["before"], data["after"]
     notes = [style("⚠ ", "warn") + clean(text) for text in data.get("warnings", [])]
     if before == after:
+        # pip reports a package index it cannot reach the same way.
         return "\n".join(
-            [f"appsec-cli {clean(after['version'])} is up to date.", *notes]
+            [
+                f"No release newer than appsec-cli {clean(after['version'])} found.",
+                style(
+                    "If you expected one, check the network connection"
+                    " and the login to the package index.",
+                    "muted",
+                ),
+                *notes,
+            ]
         )
     lines = [f"appsec-cli {clean(before['version'])} → {clean(after['version'])}"]
     old, new = before["tools"], after["tools"]

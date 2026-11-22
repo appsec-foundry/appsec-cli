@@ -91,6 +91,8 @@ appsec-cli --version       # suite and tool versions
 
 Your AppSec team provides the package index. `update` installs the latest release, including new tools, and lists what changed. Once a day, appsec-cli points out a newer release in the terminal; `APPSEC_CLI_NO_UPDATE_CHECK=1` turns this off.
 
+If a release does not work for you, go back to an earlier one with `pipx install --force appsec-cli==<version>`. The next `appsec-cli update` brings the latest release again. If appsec-cli no longer starts, for example after an update of Python, run `pipx reinstall appsec-cli`.
+
 ### Find commands
 
 ```sh
