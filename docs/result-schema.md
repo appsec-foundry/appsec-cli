@@ -47,6 +47,13 @@ With `--format json` or `sarif`, every command ends with one of these codes. In 
 
 Exit codes 0, 1, and 3 come with a result. `--fail-on never` turns off the threshold, but incomplete and failed runs still end with 3.
 
+A project's `.appsec-cli.toml` can only make the threshold stricter. A looser value is ignored and reported in `diagnostics` as `config_threshold_ignored`; any key other than a threshold stops the run with `config_forbidden_key`.
+
+## Example tools
+
+- `security-score` puts the score in `data.score` and `data.rating`. It reports the weaknesses its engine deducts points for as findings; observations the engine only marks for manual review are listed under `data.review` and don't count toward the threshold. It reports `partial` when the engine could not read all selected source, for example code in a language it does not support.
+- `analyze-threats` reports `partial` when it left out source files or the model has open questions. It fails with `llm_invalid_response` when the model's answer does not match the schema or cites no supplied file and line for a threat.
+
 ## Filters and SARIF
 
 `findings` lists the most severe first and keeps the tool's order within a severity. `--min-severity` and `--limit` shorten the printed finding list, so `--limit 5` keeps the five most severe findings. `counts` and the exit code are based on all findings.

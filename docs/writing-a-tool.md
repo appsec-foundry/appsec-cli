@@ -225,6 +225,6 @@ Every tool has one version: the engine pin of a `tool.toml`, or the package vers
 2. **Adapter change:** raise the adapter version whenever anything in its directory changes. The same applies to the core in [core/](../core).
 3. **Release:** raise the suite version in [pyproject.toml](../pyproject.toml), release, and tag the commit as `v<version>`. Teams get the change with `appsec-cli update`, which lists the new versions.
 
-The release build stops when a package changed since the last `v*` tag without a new version. For an engine with a Git source, also update `commit` in its [source](#engine-sources).
+The release build stops when a package changed since the last `v*` tag without a new version, or when `v<version>` already points to another commit. In CI, fetch the tags with the checkout. For an engine with a Git source, also update `commit` in its [source](#engine-sources).
 
 The AppSec Verifier adapter has no engine. It ships the report schema from [AppSec Verifier](https://github.com/appsec-foundry/appsec-verifier) commit `6c25aa17a2d81464dc3710a88967bb110cd9d9cd` under the Apache 2.0 license, with a copy in [tools/appsec-verifier/LICENSE](../tools/appsec-verifier/LICENSE). When the Verifier schema changes, replace the file and check the exported fields against existing reports.
