@@ -284,6 +284,8 @@ make test
 
 `make test` builds this checkout like `make install`, installs it into `.venv/`, and runs the tests of the core and of every tool there. The tests import the installed packages, so run them through `make test` after each change. They replace all model hosts with test doubles and make no model calls.
 
+CI runs `make test` and checks the code with `ruff check` and `ruff format --check`, using the Ruff version from [requirements-dev.lock](requirements-dev.lock).
+
 ## License
 
 appsec-cli is distributed under the [Apache 2.0 license](LICENSE). The tools in the example setup are separate projects with their own licenses.

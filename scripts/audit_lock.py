@@ -7,8 +7,13 @@ from urllib.request import urlopen
 
 
 def main():
-    lock = Path(__file__).resolve().parents[1] / "requirements-linux-py310.lock"
-    for row in lock.read_text().splitlines():
+    root = Path(__file__).resolve().parents[1]
+    rows = [
+        row
+        for lock in ("requirements-linux-py310.lock", "requirements-dev.lock")
+        for row in (root / lock).read_text().splitlines()
+    ]
+    for row in rows:
         if not row or row.startswith("#"):
             continue
         name, version, digest = re.fullmatch(

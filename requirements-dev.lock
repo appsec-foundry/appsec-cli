@@ -1,0 +1,2 @@
+# Development tools for CI on Linux x86_64.
+ruff==0.11.13 --hash=sha256:4ffbc82d70424b275b089166310448051afdc6e914fdab90e08df66c43bb5ca9
