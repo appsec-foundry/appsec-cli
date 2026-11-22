@@ -24,8 +24,12 @@ results: [{result_id: VF-001, eligibility: {status: dynamic}, finding_ref: {id: 
             data = export.handler(path).data
             self.assertEqual(data["annotations"][0]["verdict"], "confirmed")
             self.assertNotIn("private", json.dumps(data))
+            path.write_text(good.replace("verdict: confirmed", "verdict: shown-without-exploit"))
+            data = export.handler(path).data
+            self.assertEqual(data["annotations"][0]["verdict"], "shown-without-exploit")
             for invalid in [
                 good.replace("version: 1", "version: 2"),
+                good.replace("verdict: confirmed", "verdict: approved"),
                 "x: &a test\ny: *a",
                 "!!python/object:Test {}",
                 "results: [{}]",

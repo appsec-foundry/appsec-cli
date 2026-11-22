@@ -213,4 +213,4 @@ Every tool has one version: the engine pin of a `tool.toml`, or the package vers
 
 The release build stops when a package changed since the last `v*` tag without a new version. For an engine with a Git source, also update `commit` in its [source](#engine-sources).
 
-The offline adapter for AppSec Verifier contains no engine. It ships the report schema from Verifier commit `90fb9736af8911e0bb7e0d9b007328cfb86f9706` (Apache 2.0, license in the adapter). When the Verifier schema changes, update this file and check the exported fields against existing reports.
+The offline adapter for AppSec Verifier contains no engine. It ships the report schema from Verifier commit `6c25aa17a2d81464dc3710a88967bb110cd9d9cd` (Apache 2.0, license in the adapter). When the Verifier schema changes, update this file and check the exported fields against existing reports.

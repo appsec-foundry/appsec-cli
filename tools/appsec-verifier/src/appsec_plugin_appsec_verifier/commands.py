@@ -22,6 +22,7 @@ class Row(BaseModel):
     finding_ref: Reference
     verdict: Literal[
         "confirmed",
+        "shown-without-exploit",
         "not-reproducible",
         "blocked-by-control",
         "inconclusive",
