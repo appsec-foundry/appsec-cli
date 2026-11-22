@@ -286,7 +286,7 @@ class Suite(click.Group):
         rows = [p.get_help_record(ctx) for p in self.get_params(ctx)]
         formatter.write(
             ui.overview(
-                enabled_rows(ctx), ui.Style.detect(), version("appsec-cli"), tagline()
+                enabled_rows(ctx), style_for(ctx), version("appsec-cli"), tagline()
             )
             + "\n\n"
             + ui.section("Global options (before the tool name)", filter(None, rows))
@@ -353,7 +353,10 @@ def show_version(ctx, param, value):
     metavar="FILE",
     help="Use this project configuration instead of .appsec-cli.toml.",
 )
-@click.option("--no-color", is_flag=True, help="Print text without colour.")
+# Eager, so that --help, which is eager too, sees it when it comes first.
+@click.option(
+    "--no-color", is_flag=True, is_eager=True, help="Print text without colour."
+)
 @click.option("-v", "--verbose", is_flag=True, help="Show diagnostic codes.")
 @click.option("--debug", is_flag=True, help="Show the type of an internal error.")
 @click.option(

@@ -94,6 +94,17 @@ class Cli(unittest.TestCase):
             err,
         )
 
+    def test_no_color_applies_to_the_help(self):
+        with patch.dict(os.environ, {"FORCE_COLOR": "1"}):
+            del os.environ["NO_COLOR"]
+            _, coloured, _ = self.call("--help")
+            code, out, _ = self.call("--no-color", "--help")
+        # click drops the escape codes off a terminal; the logo shows the choice.
+        self.assertIn("╭", coloured)
+        self.assertEqual(code, 0)
+        self.assertTrue(out.startswith("appsec-cli "))
+        self.assertNotIn("╭", out)
+
     def test_engine_errors_reach_the_user(self):
         code, out, _ = self.call("--format", "json", "fixture", ".", "--fail")
         self.assertEqual(code, 3)
