@@ -101,6 +101,11 @@ TOKEN_HOSTS = ("github.com", "gitlab.com")
 URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s,]+")
 
 
+def urls_in(args):
+    """The URLs in the engine arguments, such as the repository or --pr."""
+    return [url for arg in args for url in URL.findall(arg)]
+
+
 def token_allowed(urls):
     """Whether every URL in the arguments is an HTTPS address on a token host."""
     return all(
@@ -232,8 +237,7 @@ def review_note(count):
 def terminal(ctx: typer.Context) -> Passthrough:
     """In the terminal the engine prints the result and sets the exit code."""
     args = list(ctx.args)
-    urls = [url for arg in args for url in URL.findall(arg)]
-    return Passthrough([engine("security-score"), *args], env=engine_env(urls))
+    return Passthrough([engine("security-score"), *args], env=engine_env(urls_in(args)))
 
 
 @command(
@@ -253,7 +257,7 @@ def score(ctx: typer.Context) -> Result:
     GIT_TOKEN environment variable.
     """
     args = list(ctx.args)
-    urls = [url for arg in args for url in URL.findall(arg)]
+    urls = urls_in(args)
     stderr = bytearray()
     rc, raw = invoke(
         [engine("security-score"), "--json", *args],

@@ -160,7 +160,6 @@ class ExternalTool:
         self.version_args = version_args
 
     def json(self, args, *, timeout=120, cap=8 * 1024 * 1024):
-        import re
         from packaging.version import Version
 
         executable = engine(self.binary)

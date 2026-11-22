@@ -38,6 +38,24 @@ def suggest(name, names):
     return f"Did you mean '{match[0]}'?" if match else None
 
 
+def unknown_tool(name, names):
+    return UsageError(
+        f"Unknown tool '{name}'.",
+        suggest(name, names) or "See 'appsec-cli tools list'.",
+    )
+
+
+def disabled_tool(name):
+    return UsageError(
+        f"Tool '{name}' is disabled.", "See 'appsec-cli tools list --all'."
+    )
+
+
+def listing(rows):
+    """The JSON of the start page and of tools list."""
+    return {"schema_version": 1, "version": version("appsec-cli"), "tools": rows}
+
+
 def options(ctx):
     return ctx.find_root().params
 
@@ -266,9 +284,7 @@ class Suite(click.Group):
         if tool is None:
             return None
         if tool.status == "disabled":
-            raise UsageError(
-                f"Tool '{name}' is disabled.", "See 'appsec-cli tools list --all'."
-            )
+            raise disabled_tool(name)
         ctx.meta["appsec.tool"] = name
         if tool.status != "unchecked":
             raise ToolError("tool_" + tool.status, f"{name} is {tool.status}.")
@@ -277,10 +293,7 @@ class Suite(click.Group):
     def resolve_command(self, ctx, args):
         command = self.get_command(ctx, args[0])
         if command is None:
-            hint = suggest(args[0], self.list_commands(ctx))
-            raise UsageError(
-                f"Unknown tool '{args[0]}'.", hint or "See 'appsec-cli tools list'."
-            )
+            raise unknown_tool(args[0], self.list_commands(ctx))
         return args[0], command, args[1:]
 
     def format_help(self, ctx, formatter):
@@ -374,7 +387,7 @@ def cli(ctx, **params):
         rows = enabled_rows(ctx)
         code = publish(
             ctx,
-            {"schema_version": 1, "version": version("appsec-cli"), "tools": rows},
+            listing(rows),
             lambda: ui.overview(rows, style_for(ctx), version("appsec-cli"), tagline()),
         )
         notify(ctx)
@@ -501,7 +514,7 @@ def tools_list(ctx, show_all=False, check=False):
         rows.append(row)
     return publish(
         ctx,
-        {"schema_version": 1, "version": version("appsec-cli"), "tools": rows},
+        listing(rows),
         lambda: ui.tool_list(rows, style_for(ctx)),
     )
 
@@ -513,14 +526,9 @@ def tools_describe(ctx, name):
     """Show the arguments, output formats and data schema of a tool."""
     _, tools = state(ctx)
     if name not in tools:
-        hint = suggest(name, list(tools))
-        raise UsageError(
-            f"Unknown tool '{name}'.", hint or "See 'appsec-cli tools list'."
-        )
+        raise unknown_tool(name, list(tools))
     if tools[name].status == "disabled":
-        raise UsageError(
-            f"Tool '{name}' is disabled.", "See 'appsec-cli tools list --all'."
-        )
+        raise disabled_tool(name)
     result = describe(tools[name], options(ctx)["format"] == "table")
     return publish(ctx, result, lambda: ui.describe(result, style_for(ctx)))
 
@@ -562,8 +570,8 @@ def installed():
 def update(ctx, yes):
     """Update appsec-cli and its tools with pipx."""
     pipx = shutil.which("pipx")
-    metadata = updates.pipx_metadata()
-    if not pipx or metadata is None:
+    installation = updates.pipx_metadata()
+    if not pipx or installation is None:
         raise UsageError(
             "This installation is not managed by pipx.",
             "Update it the way you installed it.",
@@ -584,7 +592,7 @@ def update(ctx, yes):
         sys.stderr.write(ui.clean(run.stdout + run.stderr).strip() + "\n")
         raise ToolError("update_failed", "pipx could not update appsec-cli.")
     warnings = []
-    if metadata.get("injected_packages"):
+    if installation.get("injected_packages"):
         # Separately: a plugin that pipx cannot update must not fail the suite update.
         try:
             plugins = subprocess.run(
@@ -657,28 +665,32 @@ def plain(value):
     return str(value)
 
 
+def global_options(root):
+    """The option names of appsec-cli itself, which go before the tool name."""
+    return {o for p in root.command.params for o in p.opts}
+
+
+def before_tool(option, path):
+    """The hint for a global option that came after the tool name."""
+    return f"Put it before the tool name: appsec-cli {option} … {path} …"
+
+
 def usage(exc):
     """Print a usage error and, where it helps, the next step."""
     message, hint = exc.format_message(), getattr(exc, "hint", None)
     root = exc.ctx.find_root() if exc.ctx else None
-    if isinstance(exc, click.NoSuchOption) and root and exc.ctx is not root:
-        if exc.option_name in {o for p in root.command.params for o in p.opts}:
+    if root and exc.ctx is not root:
+        path = exc.ctx.command_path.removeprefix("appsec-cli ")
+        names = global_options(root)
+        if isinstance(exc, click.NoSuchOption) and exc.option_name in names:
             message = f"{exc.option_name} is a global option."
-            hint = (
-                f"Put it before the tool name: appsec-cli {exc.option_name} … "
-                f"{exc.ctx.command_path.removeprefix('appsec-cli ')} …"
-            )
-    if hint is None and exc.ctx and root and exc.ctx is not root:
-        # A wrapper hands global options after the tool name to the engine.
-        names = {o for p in root.command.params for o in p.opts}
-        given = [a.split("=", 1)[0] for a in exc.ctx.args]
-        option = next((a for a in given if a in names and a in message), None)
-        if option:
-            hint = (
-                f"{option} is a global option. Put it before the tool name: "
-                f"appsec-cli {option} … "
-                f"{exc.ctx.command_path.removeprefix('appsec-cli ')} …"
-            )
+            hint = before_tool(exc.option_name, path)
+        if hint is None:
+            # A wrapper hands global options after the tool name to the engine.
+            given = [a.split("=", 1)[0] for a in exc.ctx.args]
+            option = next((a for a in given if a in names and a in message), None)
+            if option:
+                hint = f"{option} is a global option. " + before_tool(option, path)
     if hint is None and exc.ctx:
         hint = f"Run '{exc.ctx.command_path} --help'."
     print(f"Error: {ui.clean(message)}", file=sys.stderr)
