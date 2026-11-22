@@ -9,7 +9,7 @@ from unittest.mock import patch
 
 import jsonschema
 from appsec_cli import Finding, Result, ToolError, command
-from appsec_cli.config import settings
+from appsec_cli.config import Settings, settings
 from appsec_cli.external import invoke
 from appsec_cli.output import finalize, sarif
 from appsec_cli.sdk import Envelope
@@ -175,6 +175,15 @@ class Contracts(unittest.TestCase):
             os.mkfifo(path)
             with self.assertRaises(ToolError):
                 settings(path)
+
+    def test_configured_threshold_replaces_the_tool_default(self):
+        tool = ("analyze-threats", "never")
+        self.assertEqual(Settings().threshold_for(*tool), ("never", False))
+        configured = Settings(trusted={None: "high"}, local={None: "low"})
+        self.assertEqual(configured.threshold_for(*tool), ("low", False))
+        self.assertEqual(
+            Settings(trusted={None: "high"}).threshold_for(*tool), ("high", False)
+        )
 
     def test_project_file_only_tightens(self):
         cwd = os.getcwd()

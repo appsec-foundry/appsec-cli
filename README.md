@@ -140,7 +140,7 @@ With `--format json` or `sarif`, every command ends with one of these codes. `an
 | 3 | Run incomplete or failed; see `status` and `diagnostics` in the result. |
 | 130 | Cancelled. |
 
-The default threshold is `low`. `analyze-threats` uses `never`, so its findings alone never fail a run. Details are in [JSON results and exit codes](docs/result-schema.md).
+The default threshold is `low`. `analyze-threats` uses `never`, so its findings alone never fail a run, unless `--fail-on`, `APPSEC_CLI_FAIL_ON`, or a configuration file sets a threshold. Details are in [JSON results and exit codes](docs/result-schema.md).
 
 ### Disable a tool
 
@@ -265,7 +265,7 @@ disabled = ["appsec-verifier"]   # hide official tools
 additional = ["team-inventory"]  # enable a tool that is off by default, or a separately installed one
 ```
 
-`--fail-on` and `APPSEC_CLI_FAIL_ON` take precedence over configuration files. A project configuration can only make the threshold stricter and may not set anything else.
+`--fail-on` and `APPSEC_CLI_FAIL_ON` take precedence over configuration files. A threshold from a configuration file, including a stricter one in `.appsec-cli.toml`, also replaces a tool's own default, such as `never` for `analyze-threats`. A project configuration can only make the threshold stricter and may not set anything else.
 
 Credentials never go into configuration files. They come from the provider login or from environment variables.
 
