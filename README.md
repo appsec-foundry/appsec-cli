@@ -278,13 +278,11 @@ Credentials never go into configuration files. They come from the provider login
 
 ## Development
 
-Run the tests in an environment with the suite installed, for example the `.venv/` that `make release-check` creates:
-
 ```sh
-.venv/bin/python -m unittest discover -s tests
+make test
 ```
 
-The tests replace all model hosts with test doubles and make no model calls.
+`make test` builds this checkout like `make install`, installs it into `.venv/`, and runs the tests of the core and of every tool there. The tests import the installed packages, so run them through `make test` after each change. They replace all model hosts with test doubles and make no model calls.
 
 ## License
 

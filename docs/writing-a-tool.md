@@ -196,10 +196,10 @@ The [security-score adapter](../tools/security-score/src/appsec_plugin_security_
 
 ## Test a tool
 
-1. Adapt the template test. It calls the handler directly; the core tests already cover the CLI around it, such as help, usage errors, refused engine options, and exit codes. Run it with the Python of an environment where the adapter is installed:
+1. Adapt the template test. It calls the handler directly; the core tests already cover the CLI around it, such as help, usage errors, refused engine options, and exit codes. `make test` builds the checkout, installs it into `.venv/`, and runs it together with all other tests:
 
    ```sh
-   python -m unittest discover -s tools/policy-check/tests
+   make test
    ```
 
 2. Build the wheel and add it to your installation:

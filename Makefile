@@ -9,7 +9,7 @@ VENV := .venv/bin/python
 LOCK := requirements-linux-py310.lock
 INSTALL = $(PYTHON) scripts/install.py --lock $(LOCK) --wheels $(WHEELS) $(SOURCE_ARGS)
 
-.PHONY: install release-check build
+.PHONY: install release-check test build
 
 # Build this checkout and install it with pipx, without a package index. Shows one
 # line per step and writes the output to build/install.log; VERBOSE=1 shows it.
@@ -20,14 +20,19 @@ install:
 # of every tool, and the pipx tests over all tools of the release.
 release-check:
 	$(PYTHON) scripts/audit_lock.py
-	$(MAKE) build RELEASE=--release
+	$(MAKE) test RELEASE=--release
+	$(VENV) tests/pipx_release.py --wheels $(WHEELS)
+
+# Build this checkout, install it into .venv and run the tests of the core and of
+# every tool there. The tests import the installed packages, so a run without a
+# fresh build would check the previous one.
+test: build
 	$(VENV) -m pip install --no-index --no-deps --force-reinstall --find-links dist --require-hashes -r dist/release.lock
 	$(VENV) -m pip check
 	$(VENV) -m unittest discover -s tests
 	for tests in tools/[!_]*/tests; do \
 		[ ! -d "$$tests" ] || $(VENV) -m unittest discover -s "$$tests" || exit 1; \
 	done
-	$(VENV) tests/pipx_release.py --wheels $(WHEELS)
 
 # Build the wheels of the suite and its engines in dist/, showing every command.
 build:
