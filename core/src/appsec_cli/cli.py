@@ -563,6 +563,9 @@ def installed():
             "list",
             "--all",
         ],
+        # Outside the project: its .appsec-cli.toml sets only thresholds, and one
+        # this version cannot read must not stop the update.
+        cwd=sys.prefix,
         capture_output=True,
         text=True,
         timeout=60,

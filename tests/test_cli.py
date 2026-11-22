@@ -314,6 +314,17 @@ class Cli(unittest.TestCase):
                     )
                 self.assertEqual("warnings" in json.loads(out), warned)
 
+    def test_update_reads_the_versions_outside_the_project(self):
+        # A project file this version cannot read must not stop the update.
+        project = tempfile.TemporaryDirectory()
+        self.addCleanup(project.cleanup)
+        Path(project.name, ".appsec-cli.toml").write_text("new_setting = true\n")
+        here = os.getcwd()
+        os.chdir(project.name)
+        self.addCleanup(os.chdir, here)
+        suite, _ = cli_module.installed()
+        self.assertEqual(suite, version("appsec-cli"))
+
     def test_update_names_a_missing_login(self):
         from appsec_cli import cli
 
