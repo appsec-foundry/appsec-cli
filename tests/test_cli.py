@@ -226,6 +226,11 @@ class Cli(unittest.TestCase):
         self.assertIn(
             "Arguments and options go to the engine unchanged, except --analyzer,", out
         )
+        self.assertIn(
+            "With --format json before the tool name, appsec-cli returns its common "
+            "result; output options of the engine print the engine's own format.",
+            " ".join(out.split()),
+        )
         self.assertIn("usage: fixture-engine", out)  # the engine's own help
         self.assertIn("  --checks CHECKS", out)
         self.assertIn("  appsec-cli fixture .\n", out)

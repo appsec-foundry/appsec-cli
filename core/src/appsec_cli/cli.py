@@ -153,6 +153,13 @@ class Forwarding(TyperCommand):
             "Arguments and options go to the engine unchanged"
             + (f", except {kept}." if kept else ".")
         )
+        # Engines offer their own output options, such as --json; agents and
+        # scripts need to find the common result from the help they read.
+        formatter.write_paragraph()
+        formatter.write_text(
+            "With --format json before the tool name, appsec-cli returns its common "
+            "result; output options of the engine print the engine's own format."
+        )
         text = engine_help_text(self.engine_help)
         if text:
             formatter.write_paragraph()
