@@ -470,3 +470,28 @@ class Cli(unittest.TestCase):
         code, _, err = self.call("--format", "sarif", "tools", "list")
         self.assertEqual(code, 2)
         self.assertIn("Hint: Use --format json.", err)
+
+    def test_a_named_engine_gives_the_version(self):
+        fixture = {**plugin_fixture.USAGE["fixture"], "engine": "click"}
+        named = {**plugin_fixture.USAGE, "fixture": fixture}
+        with patch("appsec_cli.catalog.collected", return_value=named):
+            _, out, _ = self.call("--format", "json", "tools", "list")
+            _, run, _ = self.call("--format", "json", "fixture", ".")
+            _, versions, _ = self.call("--version")
+        tools = {t["name"]: t for t in json.loads(out)["tools"]}
+        self.assertEqual(tools["fixture"]["version"], version("click"))
+        self.assertEqual(tools["fixture"]["plugin_version"], "0.1.0")
+        self.assertEqual(tools["fixture-group"]["version"], "0.1.0")
+        self.assertEqual(json.loads(run)["run"]["tool_version"], version("click"))
+        self.assertEqual(json.loads(run)["run"]["plugin_version"], "0.1.0")
+        lines = [line.split() for line in versions.splitlines()]
+        self.assertIn(["fixture", version("click")], lines)
+        fixture["engine"] = "appsec-no-such-engine"
+        with patch("appsec_cli.catalog.collected", return_value=named):
+            _, out, _ = self.call("--format", "json", "tools", "list")
+            code, run, _ = self.call("fixture", ".")
+        tools = {t["name"]: t for t in json.loads(out)["tools"]}
+        self.assertEqual(tools["fixture"]["status"], "missing")
+        self.assertEqual(tools["fixture"]["version"], "0.1.0")
+        self.assertEqual(code, 3)
+        self.assertIn("fixture is missing.", run)

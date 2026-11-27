@@ -68,7 +68,6 @@ def options(name):
         )
 
     return dict(
-        engine_distribution="appsec-requirement-harvester",
         data=dict[str, JsonValue],
         forward_except=(),
         passthrough=terminal,

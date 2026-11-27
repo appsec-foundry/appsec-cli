@@ -21,6 +21,7 @@ where = ["src"]
 # configuration lists it under [plugins].additional.
 [tool.appsec-cli]
 enabled = false
+engine = "appsec-requirement-harvester"
 
 [tool.appsec-cli.commands.validate]
 summary = "Check a configuration without network access."

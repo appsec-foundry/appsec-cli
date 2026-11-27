@@ -5,7 +5,7 @@ This page is for CI pipelines, team CLIs, and coding agents that read appsec-cli
 ## Discover commands
 
 - `appsec-cli schema` prints the common JSON Schema of a result, version 1.
-- `appsec-cli --format json tools list` lists the suite `version` and the enabled tools with their version and command paths. It needs no model login.
+- `appsec-cli --format json tools list` lists the suite `version` and the enabled tools with their version, `plugin_version` and command paths. `version` is the one a run reports as `tool_version`; `plugin_version` is the adapter's package version. It needs no model login.
 - `appsec-cli --format json tools describe NAME` lists under `definitions` the parameters with their defaults, the output formats, and the `data_schema` of each command path.
 
 ## Result

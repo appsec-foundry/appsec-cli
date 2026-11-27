@@ -16,6 +16,9 @@ dependencies = ["appsec-cli-core==0.1.0", "appsec-analyzer==0.1.0a0"]
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.appsec-cli]
+engine = "appsec-analyzer"
+
 [tool.appsec-cli.commands.repo-profile]
 summary = "Repository size, languages and build manifests."
 examples = [

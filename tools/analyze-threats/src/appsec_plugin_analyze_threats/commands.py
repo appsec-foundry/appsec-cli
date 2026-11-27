@@ -128,7 +128,6 @@ def render_review(data):
 
 @command(
     render_data=render_review,
-    engine_distribution="appsec-analyzer",
     data=Details,
     findings=True,
     fail_on="never",

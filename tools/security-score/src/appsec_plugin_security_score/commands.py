@@ -241,7 +241,6 @@ def terminal(ctx: typer.Context) -> Passthrough:
 
 
 @command(
-    engine_distribution="appsec-security-score",
     data=Score | Change,
     findings=True,
     forward_except=ENGINE_OWNED,

@@ -64,7 +64,7 @@ The build stops when the package name does not match the directory. `appsec-cli 
 
 The template has one command that returns data and findings. For a tool with several commands, register one entry point per command, such as `"reports.summary"` and `"reports.export"`; teams then run `appsec-cli reports summary`.
 
-To wrap an engine, add it to `dependencies` with a pinned version, for example `"appsec-security-score==0.3.3"`, and start its console script with `appsec_cli.external.invoke`: your fixed arguments first, then everything the user typed. Adapt the accepted exit codes and the mapping of the engine's output to your tool. [Wrap an engine](#wrap-an-engine) has the details, and [Engine sources](#engine-sources) explains where the release build gets the engine.
+To wrap an engine, add it to `dependencies` with a pinned version, for example `"appsec-security-score==0.3.3"`, and start its console script with `appsec_cli.external.invoke`: your fixed arguments first, then everything the user typed. Name the engine under `[tool.appsec-cli]` as `engine = "appsec-security-score"`, so that `tools list`, `--version` and each run report its version; the release build checks that it is a pinned dependency. Adapt the accepted exit codes and the mapping of the engine's output to your tool. [Wrap an engine](#wrap-an-engine) has the details, and [Engine sources](#engine-sources) explains where the release build gets the engine.
 
 A tool written in another language can ship its executable as a resource in platform-specific wheels. The adapter finds the resource in its installed package and starts it with `appsec_cli.external.invoke`, which takes an argument list, uses no shell, and limits run time and output size. For offline runs and reproducible upgrades, put the engine or its client in the adapter's pinned dependencies.
 
@@ -222,7 +222,7 @@ A team can also keep a plugin outside the suite: copy the template into its own 
 
 ## Versions and updates
 
-Every tool has one version: the engine pin of a `tool.toml`, or the package version of an adapter. `appsec-cli tools list` and `appsec-cli --version` show it. pip only installs a package again when its version changes, so:
+Every tool shows one version: its engine's, from the pin of a `tool.toml` or the `engine` an adapter names, otherwise the package version of the adapter. `appsec-cli tools list`, `appsec-cli --version` and each run show it. The JSON of `tools list` and of a run also carries the adapter version as `plugin_version`. pip only installs a package again when its version changes, so:
 
 1. **Engine update:** release the new engine first. Change the pin in `tool.toml`, or raise the pin and the version in the adapter's `pyproject.toml`. Test how the adapter maps the new native output.
 2. **Adapter change:** raise the adapter version whenever anything in its directory changes. The same applies to the core in [core/](../core).

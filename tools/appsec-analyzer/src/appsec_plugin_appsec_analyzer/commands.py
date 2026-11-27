@@ -24,7 +24,6 @@ def terminal(*command_args):
 
 
 @command(
-    engine_distribution="appsec-analyzer",
     data=dict[str, JsonValue],
     forward_except=(),
     passthrough=terminal("repo-profile"),
@@ -42,7 +41,6 @@ def profile(ctx: typer.Context) -> Result:
 
 
 @command(
-    engine_distribution="appsec-analyzer",
     data=dict[str, JsonValue],
     forward_except=(),
     passthrough=terminal("export"),

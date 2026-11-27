@@ -16,6 +16,7 @@ dependencies = ["appsec-cli-core==0.1.0", "appsec-security-score==0.3.4"]
 where = ["src"]
 
 [tool.appsec-cli]
+engine = "appsec-security-score"
 examples = [
   { run = "security-score .", what = "Score the current repository" },
   { run = "security-score https://github.com/OWNER/REPO", what = "Score a GitHub repository" },

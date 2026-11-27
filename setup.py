@@ -10,6 +10,7 @@ import importlib.util
 import json
 from pathlib import Path
 
+from packaging.requirements import Requirement
 from setuptools import setup
 from setuptools.command.build_py import build_py
 
@@ -68,18 +69,30 @@ for folder in sorted((ROOT / "tools").iterdir()):
         raise ValueError(f"tools/{name}: [tool.appsec-cli] is a table")
     if not manifests.enabled(table.get("enabled", True), name):
         entries["appsec_cli.optional"].append(f"{name} = {module}")
-    # scripts/build_release.py reads the source; the CLI needs only the usage.
-    table = {k: v for k, v in table.items() if k not in ("enabled", "source")}
+    engine = table.get("engine")
+    pins = {
+        r.name
+        for r in map(Requirement, package.get("dependencies", []))
+        if [s.operator for s in r.specifier] == ["=="]
+    }
+    if engine is not None and engine not in pins:
+        raise ValueError(f"tools/{name}: engine names a dependency pinned with ==")
+    # scripts/build_release.py reads the source; the CLI needs the usage and engine.
+    table = {k: v for k, v in table.items() if k not in ("enabled", "source", "engine")}
     if table:
         commands = package.get("entry-points", {}).get("appsec_cli.tools", {})
         manifests.usage(name, table, {c.partition(".")[2] for c in commands})
+    if engine is not None:
+        table["engine"] = engine
+    if table:
         usage[name] = table
 
 
 class BuildPy(build_py):
-    """Ship the summaries and examples of the adapters with the suite.
+    """Ship the summaries, examples and engines of the adapters with the suite.
 
-    The CLI shows them on its start page and in the help without importing a tool.
+    The CLI shows them on its start page, in the help and in tools list without
+    importing a tool.
     """
 
     def run(self):

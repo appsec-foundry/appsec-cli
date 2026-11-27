@@ -217,6 +217,8 @@ def as_command(spec, examples=(), table=False):
 
 def tool_version(tool, spec):
     """The version a run reports: its engine's for a wrapper, else the plugin's."""
+    if tool.engine_version:
+        return tool.engine_version
     return (
         version(spec.engine_distribution) if spec.engine_distribution else tool.version
     )

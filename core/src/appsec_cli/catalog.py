@@ -17,6 +17,7 @@ class Tool:
     status: str
     commands: dict = field(default_factory=dict)
     usage: dict = field(default_factory=dict)
+    engine_version: str = ""
 
     def examples(self, command):
         """The examples of one command, as complete calls."""
@@ -30,7 +31,8 @@ class Tool:
         return dict(
             name=self.name,
             package=self.package,
-            version=self.version,
+            version=self.engine_version or self.version,
+            plugin_version=self.version,
             help=self.summary,
             status=self.status,
             commands=list(paths.values()),
@@ -62,7 +64,7 @@ class Tool:
 
 
 def collected():
-    """The summaries and examples the suite build collected from its adapters."""
+    """Summaries, examples and engines the suite build collected from its adapters."""
     try:
         text = resources.files("appsec_suite").joinpath("usage.json").read_text("utf-8")
         tables = json.loads(text)
@@ -122,9 +124,17 @@ def discover(cfg):
             not tool.commands or ("" in tool.commands and len(tool.commands) > 1)
         ):
             tool.status = "invalid"
-        if name in tables:
+        table = tables.get(name)
+        if isinstance(table, dict) and "engine" in table:
+            table = dict(table)
             try:
-                tool.usage = usage(name, tables[name], tool.commands)
+                tool.engine_version = metadata.version(table.pop("engine"))
+            except metadata.PackageNotFoundError:
+                if tool.status == "unchecked":
+                    tool.status = "missing"
+        if table:
+            try:
+                tool.usage = usage(name, table, tool.commands)
             except ValueError:
                 pass  # The tool still runs; only its summaries and examples are missing.
         tools[name] = tool
