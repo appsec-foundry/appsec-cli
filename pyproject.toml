@@ -15,7 +15,3 @@ package-dir = {appsec_suite = "src/appsec_suite", "appsec_suite.tools" = "tools"
 
 [tool.setuptools.package-data]
 "appsec_suite.tools" = ["*/tool.toml"]
-
-[tool.setuptools.data-files]
-"share/appsec-cli/skills/appsec-cli" = ["skills/appsec-cli/SKILL.md"]
-"share/appsec-cli/skills/appsec-cli/agents" = ["skills/appsec-cli/agents/openai.yaml"]

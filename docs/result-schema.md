@@ -1,6 +1,6 @@
 # JSON results and exit codes
 
-This page is for CI pipelines, team CLIs, and skills that read appsec-cli results.
+This page is for CI pipelines, team CLIs, and coding agents that read appsec-cli results.
 
 ## Discover commands
 
@@ -21,7 +21,7 @@ Every result has `schema_version`, `tool`, `status`, and `summary`. Depending on
 | `schema_version` | Currently `1`. |
 | `tool` | Command name. |
 | `status` | `ok`, `partial`, or `failed`. Describes the run, not the security of the target. |
-| `summary` | One sentence for people and skills. |
+| `summary` | One sentence for people and coding agents. |
 | `target` | What was checked, with a `kind` such as `repository`, `change`, `commit`, or `pull_request`. |
 | `data` | The command's own result, any JSON value. Its schema is the command's `data_schema`. |
 | `findings` | List of findings. An empty list means no findings. If the field is missing, the command does not report findings. |

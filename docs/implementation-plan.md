@@ -14,9 +14,9 @@ Die Release-Auswahl ergibt sich aus den Verzeichnissen unter `tools/` und steht 
 
 - das AppSec-Team, das die Tools schreibt und pflegt,
 - andere Teams, lokal und in CI-Pipelines,
-- Skills und andere Automatisierung, die die CLI aufrufen und die JSON-Ausgabe lesen.
+- Coding-Agenten und andere Automatisierung, die die CLI aufrufen und die JSON-Ausgabe lesen.
 
-Das AppSec-Team ergänzt einen Befehl über ein neues Verzeichnis unter `tools/`. Die Kern-CLI bleibt dabei unverändert. Dev-Teams können denselben Befehl im Terminal, aus einer eigenen CLI oder in einer CI-Pipeline als Prozess aufrufen. Skills entdecken die installierten Befehle und lesen ihre Ergebnisse als JSON.
+Das AppSec-Team ergänzt einen Befehl über ein neues Verzeichnis unter `tools/`. Die Kern-CLI bleibt dabei unverändert. Dev-Teams können denselben Befehl im Terminal, aus einer eigenen CLI oder in einer CI-Pipeline als Prozess aufrufen. Coding-Agenten finden die installierten Befehle über die Hilfe und lesen ihre Ergebnisse als JSON.
 
 ### Beispiel für die Nutzung
 
@@ -29,12 +29,12 @@ appsec-cli --format json tools list
 appsec-cli --format json tools describe analyze-threats
 ```
 
-Der zweite Aufruf eignet sich auch für eine Team-CLI oder einen CI-Job. Der aufrufende Prozess übernimmt den Exit-Code und kann den Bericht auch bei Findings auswerten. Skills verwenden dieselbe Schnittstelle ohne Python-Import.
+Der zweite Aufruf eignet sich auch für eine Team-CLI oder einen CI-Job. Der aufrufende Prozess übernimmt den Exit-Code und kann den Bericht auch bei Findings auswerten. Coding-Agenten verwenden dieselbe Schnittstelle ohne Python-Import.
 
 ### Erste Integrationen
 
 - **`security-score`** hat bereits ein eigenständiges CLI-Tool. Der Adapter nutzt dessen strukturierte Ausgabe und übernimmt Score und Rating bei Repository-Prüfungen bzw. die Sicherheitsrelevanz bei Änderungen in `data`. Findings und unvollständige Verarbeitung werden auf das gemeinsame Ergebnisschema abgebildet. Scanning und Scoring mit der Standard-Engine brauchen keinen Modellzugang. [Skill](https://github.com/appsec-foundry/appsec-skills/blob/main/skills/security-score/README.md) · [Tool](https://github.com/appsec-foundry/appsec-tools/tree/main/security-score)
-- **`analyze-threats`** liefert direkt im Terminal eine kontextbezogene Bedrohungsanalyse für einen Pull Request, einen Commit oder ein ganzes Repository. CI und Skills können dasselbe Ergebnis als JSON lesen. Der bestehende Skill dient als fachliche Referenz. [Skill](https://github.com/appsec-foundry/appsec-skills/blob/main/skills/analyze-threats/README.md)
+- **`analyze-threats`** liefert direkt im Terminal eine kontextbezogene Bedrohungsanalyse für einen Pull Request, einen Commit oder ein ganzes Repository. CI und Coding-Agenten können dasselbe Ergebnis als JSON lesen. Der bestehende Skill dient als fachliche Referenz. [Skill](https://github.com/appsec-foundry/appsec-skills/blob/main/skills/analyze-threats/README.md)
 
 | Vorgesehener Aufruf | Umfang der Analyse |
 |---|---|
@@ -92,7 +92,7 @@ Next steps
 
 Bedienfehler enden mit Exit 2 und nennen auf stderr die Ursache und einen nächsten Schritt, etwa `Hint: Did you mean 'security-score'?` bei einem Tippfehler oder den Hinweis, eine globale Option vor den Toolnamen zu setzen.
 
-`appsec-cli analyze-threats --help` erklärt die Eingaben und zeigt Beispiele. Skills erhalten mit `appsec-cli --format json tools list` dieselben Namen, Beschreibungen und Aufrufpfade in strukturierter Form.
+`appsec-cli analyze-threats --help` erklärt die Eingaben und zeigt Beispiele. Coding-Agenten erhalten mit `appsec-cli --format json tools list` dieselben Namen, Beschreibungen und Aufrufpfade in strukturierter Form.
 
 ### Modellprofile für analyze-threats
 
@@ -142,7 +142,7 @@ Gemeinsam sind nur vier Pflichtfelder: `schema_version`, `tool`, `status` und `s
 | `schema_version` | Ganzzahl, aktuell 1 | Kern |
 | `tool` | Name des Tools | Kern |
 | `status` | `ok`, `partial` oder `failed`, beschreibt nur den Lauf | Tool, bei Ausnahmen der Kern |
-| `summary` | ein Satz für Menschen und Skills | Tool, sonst ein Standardtext vom Kern |
+| `summary` | ein Satz für Menschen und Coding-Agenten | Tool, sonst ein Standardtext vom Kern |
 | `target` | was geprüft wurde, mit `kind` (`repository`, `pull_request`, `path`, `image` …) | Tool |
 | `counts` | Findings pro Severity vor jedem Filtern, wird nur bei vorhandenem Feld `findings` erzeugt | Kern |
 | `findings` | Optionale Liste. Eine leere Liste meldet null ermittelte Findings. Fehlt das Feld, liefert der Befehl für diesen Lauf keine Finding-Auswertung. | Tool |
@@ -198,7 +198,6 @@ Für `--fail-on` gilt diese Reihenfolge: CLI-Option, `APPSEC_CLI_FAIL_ON`, Benut
 | `pyproject.toml`, `setup.py`, `src/appsec_suite/` | Installationspaket und Version; der Build nimmt jedes Verzeichnis unter `tools/` auf |
 | `core/src/appsec_cli/` | Discovery, Konfiguration, Terminal, Ergebnisvertrag, Format der `tool.toml` und Prozessaufrufe |
 | `tools/` | Ein Verzeichnis pro Befehl: die fünf Adapter des Beispiel-Setups und die Vorlage `_template` |
-| `skills/appsec-cli/` | Mitgelieferter Nutzungsskill |
 | `scripts/`, `tests/` | Build, Abhängigkeitsprüfung, Vertrags- und Installationstests |
 
 ## Schnittstelle für Tools
@@ -211,7 +210,7 @@ Ein **Adapter** definiert den CLI-Befehl und übersetzt zwischen dem Tool und de
 |---|---|---|
 | Python-Tool mit gepflegter Bibliotheksschnittstelle | Entry Point im Tool-Paket oder Adapter-Wheel mit deklarierter Abhängigkeit | Python-Funktion mit typisierten Argumenten |
 | Bestehendes Kommando, z. B. `security-score`, Go-Binary oder Java-Launcher | Adapter im Tool-Paket oder als eigenes Wheel. Das Tool kommt aus seinem eigenen Release. | Installiertes Programm per Argumentliste starten, strukturierte Ausgabe, Fehler und Exit-Codes gemäß Tool-Vertrag übersetzen |
-| Assistentengestütztes Tool wie `analyze-threats` | CLI-Adapter und benötigte lokale Analysekomponenten mit der Suite ausliefern. | Der CLI-Befehl führt die Analyse über die in E5 gewählte Engine aus. Ein Skill kann den Befehl aufrufen und das Ergebnis auswerten. |
+| Assistentengestütztes Tool wie `analyze-threats` | CLI-Adapter und benötigte lokale Analysekomponenten mit der Suite ausliefern. | Der CLI-Befehl führt die Analyse über die in E5 gewählte Engine aus. Ein Coding-Agent kann den Befehl aufrufen und das Ergebnis auswerten. |
 
 Für `security-score` veröffentlicht das Team das vorhandene Python-Paket `appsec-security-score` als Wheel im gewählten Index. Jeder CLI-Release führt die getestete Version als exakte Laufzeitabhängigkeit. Dadurch installiert pipx auch das ausführbare Kommando in der Umgebung der CLI. Der Adapter löst dessen Pfad über das Skriptverzeichnis der laufenden Python-Umgebung auf und startet es mit JSON-Ausgabe. Dass `security-score` im globalen PATH liegt, ist dafür unerheblich. Die Scoring-Regeln pflegt weiterhin das Tool. Für Tools ohne JSON definiert der Adapter einen Parser für ein dokumentiertes Ausgabeformat und testet ihn gegen eine Referenzausgabe der unterstützten Version.
 
@@ -225,7 +224,7 @@ Für native Standardtools ohne Python-Paket kann der Herausgeber je unterstützt
 | Erster Lauf | `appsec-cli security-score .` | Funktioniert für ein lokales Repository direkt nach der Installation. |
 | Alle offiziellen Tools aktualisieren | `appsec-cli update` | Führt `pipx upgrade appsec-cli` aus. Installiert den neuen CLI-Release, die dafür freigegebenen Toolversionen und jedes neu ins Paket aufgenommene Tool und listet die Änderungen. |
 
-Welche Tools offiziell dazugehören, ergibt sich aus den Verzeichnissen unter `tools/`; der Build schreibt sie in die Paketmetadaten von `appsec-cli`. Das gilt auch für Tools aus anderen Repositories. Für ein neues offizielles Tool legt das AppSec-Team ein Verzeichnis an. Engine und Adapter werden damit reguläre Abhängigkeiten des nächsten CLI-Release. Dev-Teams, CI und Skills folgen derselben Aktivierung. Separat ergänzte Team-Plugins werden in der vertrauenswürdigen Konfiguration über `[plugins].additional` ausdrücklich ausgewählt. Bei der Discovery kommen nur Einträge aus der aktuellen Release-Auswahl oder dieser zusätzlichen Auswahl in Betracht; `disabled` hat Vorrang. So taucht ein zurückgezogenes offizielles Plugin nach dem Upgrade auch dann nicht von selbst wieder auf, wenn sein Wheel noch installiert ist.
+Welche Tools offiziell dazugehören, ergibt sich aus den Verzeichnissen unter `tools/`; der Build schreibt sie in die Paketmetadaten von `appsec-cli`. Das gilt auch für Tools aus anderen Repositories. Für ein neues offizielles Tool legt das AppSec-Team ein Verzeichnis an. Engine und Adapter werden damit reguläre Abhängigkeiten des nächsten CLI-Release. Dev-Teams, CI und Coding-Agenten folgen derselben Aktivierung. Separat ergänzte Team-Plugins werden in der vertrauenswürdigen Konfiguration über `[plugins].additional` ausdrücklich ausgewählt. Bei der Discovery kommen nur Einträge aus der aktuellen Release-Auswahl oder dieser zusätzlichen Auswahl in Betracht; `disabled` hat Vorrang. So taucht ein zurückgezogenes offizielles Plugin nach dem Upgrade auch dann nicht von selbst wieder auf, wenn sein Wheel noch installiert ist.
 
 Der kurze Installationsbefehl setzt voraus, dass der Paketname im gewählten Index dem Team gehört und alle benötigten Pakete darüber auflösbar sind. Für einen internen Index wird der Zugriff einmalig auf Rechnern und Runnern eingerichtet. Benötigt `analyze-threats` eine lokale Engine, stellt die Standardinstallation diese bereit. Eine Anmeldung an einem externen Dienst kann weiterhin erforderlich sein. [pipx – Installation und Updates](https://pipx.pypa.io/stable/reference/cli.html)
 
@@ -241,7 +240,7 @@ CI verwendet eine feste CLI-Releaseversion und einen dazugehörigen geprüften A
 
 Beispiel `security-score`: Neue Bewertungsregeln erscheinen zuerst in `appsec-security-score`. Im CLI-Repository hebt ein PR die festgelegte Toolversion an. Die CI installiert die gebauten Pakete in einer frischen Umgebung und ruft `appsec-cli --format json security-score` mit einer Repository- und einer Änderungs-Fixture auf. Sie prüft Score bzw. Relevanz, JSON-Struktur und Exit-Code. Ändert sich ein erwarteter Score absichtlich, erläutert der PR die fachliche Änderung. Nach erfolgreicher Abnahme veröffentlicht das AppSec-Team den CLI-Release und nennt die neue Engine-Version im Changelog.
 
-Für ein eigenständiges Plugin läuft derselbe Vertragstest in dessen Repository. Das Plugin deklariert die unterstützten CLI-Paketversionen und seine `ToolSpec.api_version`. Vor der Veröffentlichung prüft die Plugin-CI das gebaute Wheel mit der ältesten unterstützten und der aktuellen kompatiblen CLI-Version. Sie testet Discovery, Befehlsaufruf, fachliches Ergebnis und einen Fehlerfall. Änderungen an Befehlsnamen, Argumenten oder am `data`-Schema, die bestehende Nutzer betreffen, erhalten im Changelog ein Migrationsbeispiel für CI und Skills. Ein fehlerhafter Release wird durch eine neue Paketversion korrigiert.
+Für ein eigenständiges Plugin läuft derselbe Vertragstest in dessen Repository. Das Plugin deklariert die unterstützten CLI-Paketversionen und seine `ToolSpec.api_version`. Vor der Veröffentlichung prüft die Plugin-CI das gebaute Wheel mit der ältesten unterstützten und der aktuellen kompatiblen CLI-Version. Sie testet Discovery, Befehlsaufruf, fachliches Ergebnis und einen Fehlerfall. Änderungen an Befehlsnamen, Argumenten oder am `data`-Schema, die bestehende Nutzer betreffen, erhalten im Changelog ein Migrationsbeispiel für CI und Coding-Agenten. Ein fehlerhafter Release wird durch eine neue Paketversion korrigiert.
 
 ### Registrierung
 
@@ -307,15 +306,15 @@ Fertig, wenn die Reihenfolge der Ebenen getestet ist, ein verbotener Schlüssel 
 
 Fertig, wenn Tests mit einem Fake-Skript fehlendes Binary, zu alte Version, Timeout, zu große Ausgabe und Argumente mit Shell-Sonderzeichen (`; touch pwned`, `$(id)`) abdecken, die aktivierten Integrationen mit ihren deklarierten Befehlen in `tools list` erscheinen und die Referenzfälle bestehen.
 
-### Phase 5: Erste nutzbare Version für Dev-Teams und Skills
+### Phase 5: Erste nutzbare Version für Dev-Teams und Coding-Agenten
 
 Braucht E8. Der Schnellstart zeigt die pipx-Standardinstallation, den direkten Aufruf von `security-score` und das gemeinsame Update aller offiziellen Tools.
 
 - Ein Dev-Team ruft den Befehl aus einem anderen Arbeitsverzeichnis auf. Ein Beispiel für eine Team-CLI startet ihn mit einer Argumentliste, liest JSON von stdout und reicht seinen Exit-Code weiter.
 - Ein CI-Beispiel setzt die gewünschte Schwelle, bewahrt den JSON-Bericht auch bei Exit 1 oder 3 auf und gibt den Exit-Code des Prüflaufs an den Job weiter.
-- Der Skill „appsec-cli nutzen“ liest `appsec-cli --format json tools list`, beschreibt bei Bedarf das gewählte Tool mit `appsec-cli --format json tools describe <tool>` und ruft es mit `--format json` auf. Er liest den Laufstatus, interpretiert `data` gemäß dem deklarierten Schema und berücksichtigt vorhandene Findings, Counts und Diagnosen. Ein Test lässt ihn einen Score ohne Finding-Felder wiedergeben. Titel, Dateinamen und Modelltexte behandelt er als Daten. Bei Exit 2 erklärt er den Bedienfehler anhand von stderr.
+- Coding-Agenten nutzen appsec-cli ohne eigenen Skill. Sie finden die Befehle über `appsec-cli --help` und `appsec-cli --format json tools list`, beschreiben bei Bedarf ein Tool mit `appsec-cli --format json tools describe <tool>` und rufen es mit `--format json` auf. Das Ergebnis erklärt sich selbst: Laufstatus, `summary`, `data` gemäß dem deklarierten Schema, Findings, Counts und Diagnosen. Bei Exit 2 steht der Bedienfehler auf stderr.
 
-Fertig, wenn eine frische pipx-Installation aus einem Testindex ohne separat installiertes `security-score` denselben lokalen Beispielbefehl im Terminal, aus der Team-CLI, im CI-Job und über den Skill ausführt. Der Upgrade-Test installiert Release A. Release B enthält eine neuere Scoring-Engine und ein zusätzliches offizielles Tool aus einem eigenen Paket. Nach genau einem `pipx upgrade appsec-cli` prüft der Test die tatsächlich gestartete Engine-Version und führt den neuen Befehl aus. Ein weiterer Upgrade-Fall prüft ein vom Team deaktiviertes und ein aus dem Release entferntes Plugin. Beide bleiben für normale Aufrufe inaktiv. Die fachliche Abnahme verwendet einen Lauf ohne Findings, einen mit Finding über der Schwelle und einen fehlgeschlagenen Lauf. CI und Skill unterscheiden alle drei Fälle.
+Fertig, wenn eine frische pipx-Installation aus einem Testindex ohne separat installiertes `security-score` denselben lokalen Beispielbefehl im Terminal, aus der Team-CLI, im CI-Job und durch einen Coding-Agenten ausführt. Der Upgrade-Test installiert Release A. Release B enthält eine neuere Scoring-Engine und ein zusätzliches offizielles Tool aus einem eigenen Paket. Nach genau einem `pipx upgrade appsec-cli` prüft der Test die tatsächlich gestartete Engine-Version und führt den neuen Befehl aus. Ein weiterer Upgrade-Fall prüft ein vom Team deaktiviertes und ein aus dem Release entferntes Plugin. Beide bleiben für normale Aufrufe inaktiv. Die fachliche Abnahme verwendet einen Lauf ohne Findings, einen mit Finding über der Schwelle und einen fehlgeschlagenen Lauf. CI und Coding-Agenten unterscheiden alle drei Fälle an Exit-Code und Ergebnis.
 
 ### Phase 6: SARIF und Filter
 
@@ -335,8 +334,7 @@ Fertig, wenn die SARIF-Ausgabe gegen das offizielle SARIF-Schema validiert und i
 - Größenlimit für die Eingabe. Wird gekürzt, gibt es die Warnung `input_truncated` und `status: partial`.
 - Optionaler PR-Check mit `default_fail_on = "never"`
 
-Fertig, wenn Tests mit einem Fake-Client ungültiges JSON, unbekannte Felder, Ablehnung, Timeout und Kürzung abdecken, keiner dieser Fälle `ok` ergibt und ein manueller Lauf gegen den echten Anbieter einen PR bewertet. Für eine gültige Antwort ohne Findings erzeugt der PR-Check eine feste Zusammenfassung, die nur das Ausbleiben von Modellhinweisen meldet. Ein Skill-Test prüft dieselbe Aussage.
-
+Fertig, wenn Tests mit einem Fake-Client ungültiges JSON, unbekannte Felder, Ablehnung, Timeout und Kürzung abdecken, keiner dieser Fälle `ok` ergibt und ein manueller Lauf gegen den echten Anbieter einen PR bewertet. Für eine gültige Antwort ohne Findings erzeugt der PR-Check eine feste Zusammenfassung, die nur das Ausbleiben von Modellhinweisen meldet.
 ### Phase 8: Verteilung und Doku für Tool-Autoren
 
 Braucht E8.

@@ -198,7 +198,7 @@ A `.appsec-cli.toml` in the checked-out change can only make the threshold stric
 
 Other programs, such as a team's own CLI, can call appsec-cli with `--format json` and read the result as described in [JSON results and exit codes](docs/result-schema.md).
 
-The [usage skill](skills/appsec-cli/SKILL.md) tells coding agents how to find the enabled commands, run them with `--format json`, and report the result. The suite installs it under `share/appsec-cli/skills/appsec-cli/` in its environment.
+Coding agents use appsec-cli like any other command-line tool: `appsec-cli --help` lists the commands, and `--format json` returns the result. To have an agent use it without being asked, add a line to the repository's `AGENTS.md` or `CLAUDE.md`, for example: *For security checks, use `appsec-cli`; run `appsec-cli --help` first.*
 
 ## Model profiles and data use
 
@@ -302,9 +302,8 @@ Credentials never go into configuration files. They come from the provider login
 ## Documentation
 
 - [Write a tool](docs/writing-a-tool.md): one-file tools, Python adapters, tests, and versions.
-- [JSON results and exit codes](docs/result-schema.md): the result format for CI, team CLIs, and skills.
+- [JSON results and exit codes](docs/result-schema.md): the result format for CI, team CLIs, and coding agents.
 - [GitLab CI](docs/gitlab-ci.md): a pipeline template with the GitLab package registry.
-- [Usage skill](skills/appsec-cli/SKILL.md): instructions for coding agents.
 - [Implementation plan](docs/implementation-plan.md) (German): design decisions, for maintainers.
 
 ## Development

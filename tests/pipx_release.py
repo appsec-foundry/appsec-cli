@@ -147,7 +147,6 @@ def main():
             """A suite release with these tool directories: adapters or tool.toml text."""
             target = work / f"suite-{version}"
             shutil.copytree(ROOT / "src/appsec_suite", target / "src/appsec_suite")
-            shutil.copytree(ROOT / "skills", target / "skills")
             shutil.copy(ROOT / "setup.py", target)
             (target / "core/src/appsec_cli").mkdir(parents=True)
             shutil.copy(ROOT / "core/pyproject.toml", target / "core")
