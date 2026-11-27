@@ -243,3 +243,21 @@ class ResultView(unittest.TestCase):
                 "Run 'appsec-cli TOOL --help' for a tool's commands and examples.",
             ],
         )
+
+    def test_tool_list_counts_the_ready_tools_after_a_check(self):
+        def row(name, status):
+            return {"name": name, "version": "1.0", "help": "Scan.", "status": status}
+
+        ready = tool_list([row("a", "ready"), row("b", "ready")], PLAIN, True)
+        self.assertNotIn("[ready]", ready)
+        self.assertIn("\n2 tools ready.\n", ready)
+        rows = [
+            row("a", "ready"),
+            row("b", "plugin_incompatible"),
+            row("c", "disabled"),
+        ]
+        lines = tool_list(rows, PLAIN, True).splitlines()
+        self.assertIn("  b  1.0  Scan. [plugin_incompatible]", lines)
+        self.assertIn("  c  1.0  Scan. [disabled]", lines)
+        self.assertIn("1 of 2 tools ready.", lines)
+        self.assertNotIn("ready.", tool_list(rows, PLAIN))

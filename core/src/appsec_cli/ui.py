@@ -159,20 +159,36 @@ def example_lines(examples):
     return lines[:-1]
 
 
-def tool_list(rows, style):
-    """One line per tool; its commands are on the start page and in TOOL --help."""
+def tool_list(rows, style, checked=False):
+    """One line per tool; its commands are on the start page and in TOOL --help.
+
+    After a check, only a tool that does not load keeps its status, and a line
+    counts the tools that do.
+    """
     names = [clean(row["name"]) for row in rows]
     versions = [clean(row["version"]) for row in rows]
     width = min(max(map(len, names), default=0), 32)
     version_width = max(map(len, versions), default=0)
     lines = [style("Tools", "bold")]
     for row, name, version in zip(rows, names, versions):
-        status = "" if row["status"] == "unchecked" else f" [{row['status']}]"
+        quiet = row["status"] in ("unchecked", "ready")
+        status = "" if quiet else f" [{row['status']}]"
         text = f"  {name:<{width}}  {version:<{version_width}}  {clean(row['help'])}"
         lines.append(text.rstrip() + style(status, "muted"))
+    notes = []
+    tested = [row for row in rows if row["status"] != "disabled"]
+    if checked and tested:
+        ready = sum(row["status"] == "ready" for row in tested)
+        noun = "tool" if len(tested) == 1 else "tools"
+        if ready == len(tested):
+            notes.append(style(f"{ready} {noun} ready.", "ok"))
+        else:
+            notes.append(style(f"{ready} of {len(tested)} {noun} ready.", "warn"))
     if rows:
         hint = "Run 'appsec-cli TOOL --help' for a tool's commands and examples."
-        lines += ["", style(hint, "muted")]
+        notes.append(style(hint, "muted"))
+    if notes:
+        lines += ["", *notes]
     return "\n".join(lines)
 
 

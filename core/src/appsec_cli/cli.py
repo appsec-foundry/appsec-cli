@@ -566,7 +566,7 @@ def tools_list(ctx, show_all=False, check=False):
     return publish(
         ctx,
         listing(rows),
-        lambda: ui.tool_list(rows, style_for(ctx)),
+        lambda: ui.tool_list(rows, style_for(ctx), check),
     )
 
 
