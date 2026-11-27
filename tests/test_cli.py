@@ -308,6 +308,48 @@ class Cli(unittest.TestCase):
         self.assertIn("  fixture ", out)
         self.assertNotIn("appsec-cli fixture .", out)
 
+    def test_a_run_in_the_terminal_names_the_tool_first(self):
+        from appsec_cli import cli
+
+        load = catalog.Tool.load
+        seen = []
+
+        def terminal(tool, subcommand):
+            return replace(
+                load(tool, subcommand), passthrough=lambda ctx: Passthrough(["engine"])
+            )
+
+        def engine(*args, **kwargs):
+            seen.append(sys.stderr.getvalue())
+            return 0
+
+        with (
+            patch.object(cli, "interactive", return_value=True),
+            patch.object(cli.updates, "hint", return_value=None),
+        ):
+            code, _, err = self.call("fixture", ".")
+            self.assertEqual((code, err), (0, "Starting fixture 0.1.0 …\n"))
+            code, _, err = self.call("fixture-group", "export", "report")
+            self.assertEqual(
+                (code, err), (0, "Starting fixture-group export 0.1.0 …\n")
+            )
+            # Neither help nor a refused option starts the tool.
+            self.assertEqual(self.call("-v", "fixture", "--help")[2], "")
+            code, _, err = self.call("fixture", "--update")
+            self.assertEqual(code, 2)
+            self.assertTrue(err.startswith("Error: "))
+            # A wrapper's engine answers after the line.
+            with (
+                patch.object(catalog.Tool, "load", terminal),
+                patch("appsec_cli.cli.attached", side_effect=engine),
+            ):
+                self.assertEqual(self.call("fixture", ".")[0], 0)
+            self.assertEqual(seen, ["Starting fixture 0.1.0 …\n"])
+        # Outside a terminal only -v shows it.
+        self.assertEqual(self.call("--format", "json", "fixture", ".")[2], "")
+        code, _, err = self.call("-v", "--format", "json", "fixture", ".")
+        self.assertEqual((code, err), (0, "Starting fixture 0.1.0 …\n"))
+
     def test_update_hint_after_a_result_in_the_terminal(self):
         from appsec_cli import cli
 

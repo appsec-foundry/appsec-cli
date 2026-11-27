@@ -175,7 +175,7 @@ def inspect(component: str) -> Result:
 - `@command(data=...)` declares the schema of `data`, which `tools describe` publishes.
 - `@command(findings=True)` allows findings. Every rule starts with the command name and a slash, such as `policy-check/todo`.
 - A plugin sets `status` (`ok`, `partial`, `failed`) and can add `diagnostics` with fixed codes.
-- In the terminal, appsec-cli shows a header line, the summary, the findings (or, for a data-only command, the data as `key: value` lines), and an outcome line. To show the data differently, pass `render_data=` a function that turns the validated data into plain lines of text. The JSON output stays the same.
+- In the terminal, appsec-cli shows a header line, the summary, the findings (or, for a data-only command, the data as `key: value` lines), and an outcome line. Before that, when the run starts, a line on stderr names the tool and its version; this also holds for a wrapper with `passthrough=`. To show the data differently, pass `render_data=` a function that turns the validated data into plain lines of text. The JSON output stays the same.
 - Raise `typer.BadParameter` for invalid arguments (exit code 2) and `appsec_cli.ToolError(code, message)` for an expected failure (status `failed`, exit code 3).
 - Plugins return a result and never print to stdout themselves.
 

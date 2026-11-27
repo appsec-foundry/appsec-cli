@@ -215,6 +215,13 @@ def as_command(spec, examples=(), table=False):
     return command
 
 
+def tool_version(tool, spec):
+    """The version a run reports: its engine's for a wrapper, else the plugin's."""
+    return (
+        version(spec.engine_distribution) if spec.engine_distribution else tool.version
+    )
+
+
 def loaded(ctx, tool, subcommand):
     """The click command of one tool command, prepared for its run."""
     spec = tool.load(subcommand)
@@ -223,11 +230,25 @@ def loaded(ctx, tool, subcommand):
             "This command reports data, not findings.", "Use --format json."
         )
     ctx.meta["appsec.run"] = (tool, spec, time.monotonic(), datetime.now(timezone.utc))
-    if options(ctx)["verbose"]:
-        print(f"Running {tool.name}", file=sys.stderr)
-    return as_command(
+    command = as_command(
         spec, tool.examples(subcommand), options(ctx)["format"] == "table"
     )
+    run = command.invoke
+
+    def invoke(sub_ctx):
+        """Name the tool before its own output; --help ends before this."""
+        params = options(ctx)
+        if params["verbose"] or interactive():
+            name = " ".join(
+                filter(None, (tool.name, subcommand, tool_version(tool, spec)))
+            )
+            style = ui.Style.detect(params["no_color"], sys.stderr)
+            line = style(f"Starting {ui.clean(name)} …", "muted")
+            print(line, file=sys.stderr, flush=True)
+        return run(sub_ctx)
+
+    command.invoke = invoke
+    return command
 
 
 class ToolGroup(click.Group):
@@ -420,9 +441,7 @@ def finish(ctx, result, **params):
         fail, ignored = cfg.threshold_for(tool.name, spec.fail_on)
     run = {
         "cli_version": version("appsec-cli"),
-        "tool_version": version(spec.engine_distribution)
-        if spec.engine_distribution
-        else tool.version,
+        "tool_version": tool_version(tool, spec),
         "plugin_version": tool.version,
         "started_at": started.isoformat(),
         "duration_ms": int((time.monotonic() - start) * 1000),
