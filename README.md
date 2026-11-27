@@ -198,7 +198,13 @@ A `.appsec-cli.toml` in the checked-out change can only make the threshold stric
 
 Other programs, such as a team's own CLI, can call appsec-cli with `--format json` and read the result as described in [JSON results and exit codes](docs/result-schema.md).
 
-Coding agents use appsec-cli like any other command-line tool: `appsec-cli --help` lists the commands, and `--format json` returns the result. To have an agent use it without being asked, add a line to the repository's `AGENTS.md` or `CLAUDE.md`, for example: *For security checks, use `appsec-cli`; run `appsec-cli --help` first.*
+Coding agents use appsec-cli like any other command-line tool: `appsec-cli --help` lists the commands, and `--format json` returns the result. To have an agent use it without being asked, add these lines to the repository's `AGENTS.md` or `CLAUDE.md`:
+
+```markdown
+Security checks: use `appsec-cli` (see `appsec-cli --help`) and call tools as
+`appsec-cli --format json TOOL …`. Model-based tools send source code to a model;
+run them only when the user asks for one.
+```
 
 ## Model profiles and data use
 
