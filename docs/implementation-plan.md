@@ -73,14 +73,14 @@ Security tools from your AppSec team
 Usage: appsec-cli [OPTIONS] TOOL [COMMAND] [ARGS]
 
 Tools
-  analyze-threats               Threat review of a repository, commit or PR.
+  analyze-threats               Model-based threat review of a repository, commit or PR.
     appsec-cli analyze-threats --commit HEAD
   appsec-analyzer export        Export a saved assessment, for example as SARIF or HTML.
     appsec-cli appsec-analyzer export --assessment ./assessment --output ./out
   appsec-analyzer repo-profile  Repository size, languages and build manifests.
     appsec-cli appsec-analyzer repo-profile .
   appsec-verifier export        Export results from completed verification reports.
-  security-score                Score a repository or assess a change.
+  security-score                Score a repository or assess a change; no model calls.
     appsec-cli security-score .
 
 Next steps

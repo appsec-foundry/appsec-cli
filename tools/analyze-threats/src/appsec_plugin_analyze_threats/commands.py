@@ -124,7 +124,10 @@ def analyze(
         Optional[str], typer.Option(help="Model name or configured gateway alias.")
     ] = None,
 ) -> Result:
-    """Assess threats in the committed HEAD, a commit, the changes since a base commit or a pull request, with cited evidence."""
+    """Assess threats in the committed HEAD, a commit, the changes since a base commit or a pull request, with cited evidence.
+
+    Sends the selected source to the profile's model; a review can take up to 3 minutes.
+    """
     from appsec_analyzer.engine import initialize
 
     initialize()

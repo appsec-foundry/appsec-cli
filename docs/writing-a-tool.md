@@ -147,6 +147,7 @@ A `tool.toml` takes the same `examples` array.
 
 - `run` is the call without `appsec-cli`. It starts with the tool name and, for a tool with several commands, with the command.
 - `what` says in one line what the call does. The help prints it as a `#` comment above the call.
+- Say in the description or `summary` whether the tool calls a model.
 - Each command has at most 5 examples. `run`, `what`, and `summary` are one line of up to 100 characters.
 - The release build stops on an invalid entry or a command the tool does not have.
 - A tool without entries appears with its name and description only. This also applies to plugins installed outside the suite with `pipx inject`.
