@@ -20,7 +20,7 @@ where = ["src"]
 engine = "appsec-analyzer"
 
 [tool.appsec-cli.commands.repo-profile]
-summary = "Repository size, languages and build manifests."
+summary = "Show repository size, languages and build manifests."
 examples = [
   { run = "appsec-analyzer repo-profile .", what = "Inventory the current repository" },
 ]

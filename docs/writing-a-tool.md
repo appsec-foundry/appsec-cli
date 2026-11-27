@@ -147,6 +147,7 @@ A `tool.toml` takes the same `examples` array.
 
 - `run` is the call without `appsec-cli`. It starts with the tool name and, for a tool with several commands, with the command.
 - `what` says in one line what the call does. The help prints it as a `#` comment above the call.
+- Start the description and each `summary` with a verb, such as "Score a repository …" or "Export a saved assessment …".
 - Say in the description or `summary` whether the tool calls a model.
 - Each command has at most 5 examples. `run`, `what`, and `summary` are one line of up to 100 characters.
 - The release build stops on an invalid entry or a command the tool does not have.

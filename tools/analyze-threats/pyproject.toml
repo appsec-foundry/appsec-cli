@@ -6,7 +6,7 @@ build-backend = "setuptools.build_meta"
 name = "appsec-plugin-analyze-threats"
 version = "0.1.0"
 requires-python = ">=3.10"
-description = "Model-based threat review of a repository, commit or PR."
+description = "Review threats in a repository, commit or PR with a model."
 dependencies = ["appsec-cli-core==0.1.0", "appsec-analyzer==0.1.0a0"]
 
 [project.entry-points."appsec_cli.tools"]
