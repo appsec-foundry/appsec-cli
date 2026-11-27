@@ -2,6 +2,7 @@ import importlib.util
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -147,3 +148,24 @@ class EngineSources(unittest.TestCase):
                 with self.subTest(message=message):
                     with self.assertRaisesRegex(SystemExit, message):
                         build_release.sources(root)
+
+
+class WheelBuild(unittest.TestCase):
+    def test_a_deleted_file_does_not_ship(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            project = Path(tmp, "project")
+            (project / "pkg").mkdir(parents=True)
+            (project / "pyproject.toml").write_text(
+                '[build-system]\nrequires = ["setuptools"]\n'
+                'build-backend = "setuptools.build_meta"\n'
+                '[project]\nname = "pkg"\nversion = "1"\n'
+                '[tool.setuptools]\npackages = ["pkg"]\n'
+            )
+            (project / "pkg/__init__.py").write_text("")
+            (project / "pkg/old.py").write_text("")
+            build_release.build(project, Path(tmp, "first"))
+            (project / "pkg/old.py").unlink()
+            build_release.build(project, Path(tmp, "second"))
+            (wheel,) = Path(tmp, "second").glob("*.whl")
+            with zipfile.ZipFile(wheel) as archive:
+                self.assertNotIn("pkg/old.py", archive.namelist())

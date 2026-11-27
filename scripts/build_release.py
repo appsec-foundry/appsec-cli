@@ -5,6 +5,7 @@ import importlib.util
 from argparse import ArgumentParser
 from dataclasses import replace
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -157,6 +158,9 @@ def checkout(source, commit, target):
 
 
 def build(project, target):
+    # setuptools copies the sources into build/ and keeps what is already there,
+    # so a file deleted from the sources would still ship.
+    shutil.rmtree(Path(project, "build"), ignore_errors=True)
     subprocess.run(
         [
             sys.executable,
