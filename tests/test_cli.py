@@ -278,6 +278,16 @@ class Cli(unittest.TestCase):
         code, _, err = self.call("fixture", ".")
         self.assertEqual(code, 2)
         self.assertIn("Error: Tool 'fixture' is disabled.", err)
+        # The suite also ships tools that stay off, such as requirement-harvester.
+        hint = (
+            r"(?m)^\d+ disabled tools? not shown\. See 'appsec-cli tools list --all'\.$"
+        )
+        _, out, _ = self.call("tools", "list")
+        self.assertNotIn("  fixture ", out)
+        self.assertRegex(out, hint)
+        _, out, _ = self.call("tools", "list", "--all")
+        self.assertIn("[disabled]", out)
+        self.assertNotIn("not shown", out)
 
     def test_start_page_loads_no_tool(self):
         script = (

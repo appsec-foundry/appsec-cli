@@ -159,11 +159,11 @@ def example_lines(examples):
     return lines[:-1]
 
 
-def tool_list(rows, style, checked=False):
+def tool_list(rows, style, checked=False, hidden=0):
     """One line per tool; its commands are on the start page and in TOOL --help.
 
     After a check, only a tool that does not load keeps its status, and a line
-    counts the tools that do.
+    counts the tools that do. hidden counts the disabled tools left out.
     """
     names = [clean(row["name"]) for row in rows]
     versions = [clean(row["version"]) for row in rows]
@@ -187,6 +187,10 @@ def tool_list(rows, style, checked=False):
     if rows:
         hint = "Run 'appsec-cli TOOL --help' for a tool's commands and examples."
         notes.append(style(hint, "muted"))
+    if hidden:
+        noun = "tool" if hidden == 1 else "tools"
+        text = f"{hidden} disabled {noun} not shown. See 'appsec-cli tools list --all'."
+        notes.append(style(text, "muted"))
     if notes:
         lines += ["", *notes]
     return "\n".join(lines)

@@ -244,6 +244,21 @@ class ResultView(unittest.TestCase):
             ],
         )
 
+    def test_tool_list_names_the_hidden_tools(self):
+        row = {"name": "a", "version": "1.0", "help": "Scan.", "status": "unchecked"}
+        self.assertIn(
+            "1 disabled tool not shown. See 'appsec-cli tools list --all'.",
+            tool_list([row], PLAIN, hidden=1).splitlines(),
+        )
+        self.assertEqual(
+            tool_list([], PLAIN, hidden=2).splitlines(),
+            [
+                "Tools",
+                "",
+                "2 disabled tools not shown. See 'appsec-cli tools list --all'.",
+            ],
+        )
+
     def test_tool_list_counts_the_ready_tools_after_a_check(self):
         def row(name, status):
             return {"name": name, "version": "1.0", "help": "Scan.", "status": status}

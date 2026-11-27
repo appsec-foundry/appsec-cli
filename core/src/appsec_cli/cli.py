@@ -552,8 +552,10 @@ def tools_list(ctx, show_all=False, check=False):
     """List the tools and their commands."""
     _, tools = state(ctx)
     rows = []
+    hidden = 0
     for tool in tools.values():
         if tool.status == "disabled" and not show_all:
+            hidden += 1
             continue
         row = tool.description()
         if check and tool.status == "unchecked":
@@ -566,7 +568,7 @@ def tools_list(ctx, show_all=False, check=False):
     return publish(
         ctx,
         listing(rows),
-        lambda: ui.tool_list(rows, style_for(ctx), check),
+        lambda: ui.tool_list(rows, style_for(ctx), check, hidden),
     )
 
 
