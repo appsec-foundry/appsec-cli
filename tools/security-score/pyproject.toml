@@ -7,7 +7,7 @@ name = "appsec-plugin-security-score"
 version = "0.1.0"
 requires-python = ">=3.10"
 description = "Score a repository or assess a change; no model calls."
-dependencies = ["appsec-cli-core==0.1.0", "appsec-security-score==0.3.3"]
+dependencies = ["appsec-cli-core==0.1.0", "appsec-security-score==0.3.4"]
 
 [project.entry-points."appsec_cli.tools"]
 "security-score" = "appsec_plugin_security_score.commands:score"
@@ -27,5 +27,5 @@ examples = [
 [tool.appsec-cli.source]
 package = "appsec-security-score"
 git = "https://github.com/appsec-foundry/appsec-tools.git"
-commit = "1c5a9b21d570c7c5650f80de3c7a1fdd43932d82"
+commit = "bb7345ce8bf2eab7ed49a71ab9ac2ea255cfb2c3"
 path = "security-score"

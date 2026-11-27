@@ -2,7 +2,7 @@
 
 [![Version](https://img.shields.io/badge/version-0.1.0-orange.svg)](pyproject.toml)
 [![Status](https://img.shields.io/badge/status-alpha-orange.svg)](#appsec-cli)
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue.svg)](pyproject.toml)
+[![Python](https://img.shields.io/badge/python-3.12%2B-blue.svg)](pyproject.toml)
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![SARIF](https://img.shields.io/badge/SARIF-v2.1.0-blue.svg)](https://docs.oasis-open.org/sarif/sarif/v2.1.0/sarif-v2.1.0.html)
 
@@ -64,7 +64,7 @@ The example tools come from appsec-foundry. Each one is a Python adapter in [too
 
 | Command | What it does | Built on | Model calls |
 | --- | --- | --- | --- |
-| `security-score [REPO]` | Scores a local repository or a GitHub or GitLab repository by its HTTPS URL. With `--commit SHA` or `--staged`, it rates how security-relevant a change is. | [Security Score](https://github.com/appsec-foundry/appsec-tools/tree/main/security-score) 0.3.3 | No |
+| `security-score [REPO]` | Scores a local repository or a GitHub or GitLab repository by its HTTPS URL. With `--commit SHA` or `--staged`, it rates how security-relevant a change is. | [Security Score](https://github.com/appsec-foundry/appsec-tools/tree/main/security-score) 0.3.4 | No |
 | `analyze-threats [REPO]` | Threat review of `HEAD`, a commit (`--commit SHA`), the changes since a base commit (`--base SHA`), or a GitHub pull request (`--pr URL`), with cited evidence. | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | Yes |
 | `appsec-analyzer repo-profile [REPO]` | Size, languages, and build manifests of a repository. | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | No |
 | `appsec-analyzer export --assessment DIR --output DIR` | Converts a saved Analyzer assessment, for example to SARIF (`--formats sarif`) or HTML (`--formats html`, needs Pandoc). | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | No |
