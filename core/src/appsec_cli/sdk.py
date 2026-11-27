@@ -50,10 +50,14 @@ class Envelope(Result):
 
 @dataclass(frozen=True)
 class Passthrough:
-    """An engine call whose output and exit code reach the caller unchanged."""
+    """An engine call whose output and exit code reach the caller unchanged.
+
+    timeout is how long the engine may run, in seconds.
+    """
 
     argv: list[str]
     env: dict[str, str] | None = None
+    timeout: int = 120
 
 
 class ToolError(Exception):

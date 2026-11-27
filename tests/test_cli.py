@@ -153,6 +153,22 @@ class Cli(unittest.TestCase):
             code, _, err = self.call("fixture", ".", "--format", "json")
         self.assertEqual((code, err), (1, ""))
 
+    def test_terminal_wrapper_sets_the_time_limit(self):
+        load = catalog.Tool.load
+        calls = [Passthrough(["engine"]), Passthrough(["engine"], timeout=900)]
+
+        def terminal(tool, subcommand):
+            return replace(load(tool, subcommand), passthrough=lambda ctx: calls.pop(0))
+
+        with (
+            patch.object(catalog.Tool, "load", terminal),
+            patch("appsec_cli.cli.attached", return_value=0) as attached,
+        ):
+            self.call("fixture", ".")
+            self.assertEqual(attached.call_args.kwargs["timeout"], 120)
+            self.call("fixture", ".")
+            self.assertEqual(attached.call_args.kwargs["timeout"], 900)
+
     def test_engine_errors_reach_the_user(self):
         code, out, _ = self.call("--format", "json", "fixture", ".", "--fail")
         self.assertEqual(code, 3)

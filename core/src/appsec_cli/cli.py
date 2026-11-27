@@ -480,7 +480,7 @@ def hand_over(ctx, name, call):
     env = call.env
     if options(ctx)["no_color"]:
         env = {**(os.environ if env is None else env), "NO_COLOR": "1"}
-    code = attached(call.argv, env=env)
+    code = attached(call.argv, env=env, timeout=call.timeout)
     if code == 2:
         # argparse engines end with 2 on an option they do not know, such as a
         # global option of appsec-cli given after the tool name.
