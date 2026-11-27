@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import tempfile
+import time
 import unittest
 from contextlib import nullcontext, redirect_stderr
 from pathlib import Path
@@ -124,6 +125,50 @@ class Threats(unittest.TestCase):
             with self.assertRaises(ToolError) as exc:
                 hosts.post("https://gateway.example/v1/chat/completions", {}, {})
             self.assertEqual(exc.exception.code, "llm_timeout")
+
+    def test_the_terminal_shows_the_time_until_the_model_answers(self):
+        class Terminal(io.StringIO):
+            def isatty(self):
+                return True
+
+        empty = {"architecture": ARCHITECTURE, "threats": [], "open_questions": []}
+
+        def answer(*args):
+            """Answers once the line has counted one second."""
+            end = time.monotonic() + 5
+            while "0:01" not in shown.getvalue() and time.monotonic() < end:
+                time.sleep(0.01)
+            return empty
+
+        def review(stderr, reply):
+            with (
+                patch.object(hosts, "complete", side_effect=reply),
+                redirect_stderr(stderr),
+            ):
+                commands.analyze.handler(Path(tmp))
+            return stderr.getvalue()
+
+        with tempfile.TemporaryDirectory() as tmp:
+            Path(tmp, "app.py").write_text("version = 1\n")
+            for args in (["init", "-q"], ["add", "."], ["commit", "-qm", "initial"]):
+                subprocess.check_call(
+                    ["git", "-C", tmp, "-c", "user.name=test"]
+                    + ["-c", "user.email=test@example.invalid", *args]
+                )
+            shown = Terminal()
+            text = review(shown, answer)
+            self.assertIn("\r  0:00 of up to 3:00\r  0:01 of up to 3:00", text)
+            self.assertTrue(text.endswith(" of up to 3:00\n"))
+            # A failed review ends the line too.
+            shown = Terminal()
+            failure = ToolError("llm_timeout", "The model exceeded its time limit.")
+            with self.assertRaises(ToolError):
+                review(shown, failure)
+            self.assertTrue(shown.getvalue().endswith("0:00 of up to 3:00\n"))
+            # Without a terminal, only the status line is written.
+            text = review(io.StringIO(), lambda *args: empty)
+            self.assertTrue(text.endswith("This can take up to 3 minutes.\n"))
+            self.assertNotIn("of up to", text)
 
     def test_scopes_and_evidence(self):
         with tempfile.TemporaryDirectory() as tmp:

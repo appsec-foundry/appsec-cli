@@ -1,7 +1,9 @@
 import os
 import re
 import sys
-from contextlib import nullcontext
+import threading
+import time
+from contextlib import contextmanager, nullcontext
 from pathlib import Path
 from typing import Annotated, Optional, Literal
 
@@ -59,6 +61,40 @@ class Details(Strict):
 def progress(message):
     """A status line on stderr while the review runs; stdout carries only the result."""
     print(message, file=sys.stderr, flush=True)
+
+
+def clock(seconds):
+    return f"{seconds // 60}:{seconds % 60:02}"
+
+
+@contextmanager
+def waiting(limit):
+    """In the terminal, a line that counts the time until the model answers."""
+    if not sys.stderr.isatty():
+        yield
+        return
+    start = time.monotonic()
+    done = threading.Event()
+
+    def show():
+        elapsed = clock(int(time.monotonic() - start))
+        sys.stderr.write(f"\r  {elapsed} of up to {clock(limit)}")
+        sys.stderr.flush()
+
+    def tick():
+        while not done.wait(1):
+            show()
+
+    show()
+    thread = threading.Thread(target=tick, daemon=True)
+    thread.start()
+    try:
+        yield
+    finally:
+        done.set()
+        thread.join()
+        show()
+        sys.stderr.write("\n")
 
 
 def render_review(data):
@@ -205,13 +241,14 @@ def analyze(
             f"Sending {files} file{'' if files == 1 else 's'} to {selected} ({clean(model)}) for review. "
             f"This can take up to {hosts.TIME_LIMIT // 60} minutes."
         )
-        reply = hosts.complete(
-            selected,
-            model,
-            {"scope": scope, "documents": docs},
-            Review.model_json_schema(),
-            root,
-        )
+        with waiting(hosts.TIME_LIMIT):
+            reply = hosts.complete(
+                selected,
+                model,
+                {"scope": scope, "documents": docs},
+                Review.model_json_schema(),
+                root,
+            )
         try:
             parsed = Review.model_validate(cleaner.protect(reply))
             lengths = {
