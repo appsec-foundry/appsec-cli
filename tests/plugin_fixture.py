@@ -40,6 +40,7 @@ parser.add_argument("paths", nargs="*", help="What to scan.")
 parser.add_argument("--checks", help="Run only these checks.")
 parser.add_argument("--finding", action="store_true", help="Report one finding.")
 parser.add_argument("--fail", action="store_true", help="Stop without a result.")
+parser.add_argument("--partial", action="store_true", help="Leave out some source.")
 options = parser.parse_args()
 if options.fail:
     sys.exit("Reading sources...\\nThe repository does not exist.")
@@ -70,7 +71,12 @@ def scan(ctx: typer.Context) -> Result:
         raise ToolError("scan_failed", last_line(stderr) or "The scan failed.")
     data = json_object(raw)
     found = [Finding(rule="fixture/check", title="Fixture finding", severity="high")]
-    return Result(summary="Scanned.", data=data, findings=found[: data["findings"]])
+    return Result(
+        status="partial" if "--partial" in ctx.args else "ok",
+        summary="Scanned.",
+        data=data,
+        findings=found[: data["findings"]],
+    )
 '''
 
 # A tool with several typed commands.

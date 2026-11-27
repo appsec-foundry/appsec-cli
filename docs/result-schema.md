@@ -45,7 +45,7 @@ With `--format json` or `sarif`, every command ends with one of these codes. In 
 | 3 | Run incomplete or failed; see `status` and `diagnostics`. |
 | 130 | Cancelled by the user. |
 
-Exit codes 0, 1, and 3 come with a result. `--fail-on never` turns off the threshold, but incomplete and failed runs still end with 3.
+Exit codes 0, 1, and 3 come with a result. With `--format json`, a result that ends with 1 names the threshold and the number of findings that reached it in the diagnostic `threshold_reached`. `--fail-on never` turns off the threshold, but incomplete and failed runs still end with 3.
 
 A project's `.appsec-cli.toml` can only make the threshold stricter. A looser value is ignored and reported in `diagnostics` as `config_threshold_ignored`; any key other than a threshold stops the run with `config_forbidden_key`.
 

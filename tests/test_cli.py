@@ -193,6 +193,31 @@ class Cli(unittest.TestCase):
         code, _, _ = self.call("--fail-on", "never", "fixture", ".", "--finding")
         self.assertEqual(code, 0)
 
+    def test_json_names_the_threshold_behind_exit_1(self):
+        def run(*options, engine=()):
+            code, out, _ = self.call(
+                "--format", "json", *options, "fixture", ".", "--finding", *engine
+            )
+            return code, json.loads(out).get("diagnostics", [])
+
+        reached = {
+            "level": "info",
+            "code": "threshold_reached",
+            "message": "Threshold high reached by 1 finding (exit 1).",
+        }
+        # Filters shorten the list, not the count behind the exit code.
+        self.assertEqual(run("--fail-on", "high", "--limit", "0"), (1, [reached]))
+        self.assertEqual(run("--fail-on", "critical"), (0, []))
+        self.assertEqual(run("--fail-on", "never"), (0, []))
+        code, diagnostics = run("--fail-on", "high", engine=["--partial"])
+        self.assertEqual(code, 3)
+        self.assertNotIn("threshold_reached", [d["code"] for d in diagnostics])
+        # The terminal says it once, in the outcome line.
+        code, out, _ = self.call("--fail-on", "high", "fixture", ".", "--finding")
+        self.assertEqual(code, 1)
+        self.assertNotIn("reached by", out)
+        self.assertIn("Threshold high reached (exit 1)", out)
+
     def test_wrapper_help_is_the_engine_help(self):
         code, out, _ = self.call("fixture", "--help")
         self.assertEqual(code, 0)

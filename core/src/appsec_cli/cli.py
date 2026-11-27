@@ -431,6 +431,20 @@ def finish(ctx, result, **params):
                 "message": f".appsec-cli.toml cannot lower the threshold; {fail} applies.",
             }
         )
+    if code == 1 and params["format"] == "json":
+        # The terminal says this in its outcome line; JSON readers get it here.
+        reached = sum(
+            report["counts"][s] for s in SEVERITIES[: SEVERITIES.index(fail) + 1]
+        )
+        report.setdefault("diagnostics", []).append(
+            {
+                "level": "info",
+                "code": "threshold_reached",
+                "message": f"Threshold {fail} reached by {reached} "
+                + ("finding" if reached == 1 else "findings")
+                + " (exit 1).",
+            }
+        )
     if params["format"] == "json":
         value = report
     elif params["format"] == "sarif":
