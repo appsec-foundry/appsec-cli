@@ -53,6 +53,7 @@ A project's `.appsec-cli.toml` can only make the threshold stricter. A looser va
 
 - `security-score` puts the score in `data.score` and `data.rating`. It reports the weaknesses its engine deducts points for as findings; observations the engine only marks for manual review are listed under `data.review` and don't count toward the threshold. It reports `partial` when the engine could not read all selected source, for example code in a language it does not support.
 - `analyze-threats` reports `partial` when it left out source it was asked to review: a changed file of a commit or pull request, or any file of a repository review. Unchanged files left out of a change's context and the model's open questions are reported as diagnostics and under `data`. It fails with `llm_invalid_response` when the model's answer does not match the schema or cites no supplied file and line for a threat.
+- `requirement-harvester run` returns the Harvester's summary unchanged under `data`: the number of `requirements` and `catalogs` and whether it was a `dry-run`. The catalog and the run report go to the paths in the Harvester's configuration. An invalid configuration ends with exit code 2. A failed sign-in, fetch, or export ends with 3 and `auth_failed`, `harvest_failed`, or `export_failed`.
 
 ## Filters and SARIF
 

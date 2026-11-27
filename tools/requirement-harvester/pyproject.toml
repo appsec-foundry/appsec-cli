@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=77"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "appsec-plugin-requirement-harvester"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "Read requirements from web pages into an OSCAL catalog."
+dependencies = ["appsec-cli-core==0.1.0", "appsec-requirement-harvester==0.1.0"]
+
+[project.entry-points."appsec_cli.tools"]
+"requirement-harvester.validate" = "appsec_plugin_requirement_harvester.commands:validate"
+"requirement-harvester.run" = "appsec_plugin_requirement_harvester.commands:run"
+"requirement-harvester.login" = "appsec_plugin_requirement_harvester.commands:login"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+# A tool for the AppSec team, not for development teams: off until a user
+# configuration lists it under [plugins].additional.
+[tool.appsec-cli]
+enabled = false
+
+[tool.appsec-cli.commands.validate]
+summary = "Check a configuration without network access."
+examples = [
+  { run = "requirement-harvester validate --config requirements.yaml", what = "Check the configuration" },
+]
+
+[tool.appsec-cli.commands.run]
+summary = "Read requirements from the configured pages into an OSCAL catalog."
+examples = [
+  { run = "requirement-harvester run --config requirements.yaml --dry-run", what = "Fetch and extract, but write only the run report" },
+  { run = "requirement-harvester run --config requirements.yaml", what = "Write the OSCAL catalog" },
+]
+
+[tool.appsec-cli.commands.login]
+summary = "Sign in to a source that uses Microsoft Entra ID."
+examples = [
+  { run = "requirement-harvester login --config requirements.yaml --source company", what = "Sign in through the browser before a run" },
+]
+
+[tool.appsec-cli.source]
+package = "appsec-requirement-harvester"
+git = "https://github.com/appsec-foundry/appsec-tools.git"
+commit = "9703439d01e58b3b01e43eb6643c781cacd2e097"
+path = "requirement-harvester"

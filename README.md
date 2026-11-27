@@ -16,7 +16,7 @@ appsec-cli gives development teams the security tools of their AppSec team in on
   <img src="docs/images/start-page.png" alt="Start page of appsec-cli in the terminal: the tools of the example setup with an example call each, and the next steps" width="100%">
 </picture>
 
-This repository contains an example setup built on tools from [appsec-foundry](https://github.com/appsec-foundry): [Security Score](https://github.com/appsec-foundry/appsec-tools/tree/main/security-score), [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer), and [AppSec Verifier](https://github.com/appsec-foundry/appsec-verifier). Replace them with your own tools or add more.
+This repository contains an example setup built on tools from [appsec-foundry](https://github.com/appsec-foundry): [Security Score](https://github.com/appsec-foundry/appsec-tools/tree/main/security-score), [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer), [AppSec Verifier](https://github.com/appsec-foundry/appsec-verifier), and [Requirement Harvester](https://github.com/appsec-foundry/appsec-tools/tree/main/requirement-harvester). Replace them with your own tools or add more.
 
 appsec-cli has no server and no package index of its own. The tools run on the developer's machine or the CI runner. Of the example tools, only `analyze-threats` sends source code to a model provider; see [Data use](#model-profiles-and-data-use).
 
@@ -69,6 +69,7 @@ The example tools come from appsec-foundry. Each one is a Python adapter in [too
 | `appsec-analyzer repo-profile [REPO]` | Size, languages, and build manifests of a repository. | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | No |
 | `appsec-analyzer export --assessment DIR --output DIR` | Converts a saved Analyzer assessment, for example to SARIF (`--formats sarif`) or HTML (`--formats html`, needs Pandoc). | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | No |
 | `appsec-verifier export VERIFICATION_YAML` | Checks a finished AppSec Verifier report and exports its findings with verdict and confidence. | Report schema of [AppSec Verifier](https://github.com/appsec-foundry/appsec-verifier) | No |
+| `requirement-harvester run --config FILE` | Reads requirements from web pages and wikis into an OSCAL catalog, as a configuration file sets. Off by default; see [Requirement Harvester](#requirement-harvester). | [Requirement Harvester](https://github.com/appsec-foundry/appsec-tools/tree/main/requirement-harvester) 0.1.0 | No |
 
 ```sh
 appsec-cli security-score .
@@ -78,6 +79,26 @@ appsec-cli appsec-analyzer export --assessment ~/assessments/app --output ~/expo
 ```
 
 For a private repository on github.com or gitlab.com, `security-score` uses a read-only token from `GIT_TOKEN`. Other hosts don't receive it.
+
+### Requirement Harvester
+
+`requirement-harvester` is for the AppSec team, not for development teams. It turns the company's requirement pages into an OSCAL catalog for automated checks, usually in a scheduled CI job. It ships turned off; enable it in your user configuration:
+
+```toml
+# ~/.config/appsec-cli/config.toml
+[plugins]
+additional = ["requirement-harvester"]
+```
+
+```sh
+appsec-cli requirement-harvester validate --config requirements.yaml
+appsec-cli requirement-harvester run --config requirements.yaml --dry-run
+appsec-cli requirement-harvester login --config requirements.yaml --source company
+```
+
+The configuration sets which pages are read, how requirements are recognized, and where the catalog goes. The [Harvester's README](https://github.com/appsec-foundry/appsec-tools/tree/main/requirement-harvester) explains how to write one. `login` signs in to a Microsoft Entra ID source through the browser, so it runs only in the terminal.
+
+The Harvester needs direct HTTPS access to the sources; it does not use an HTTP proxy. It never receives `GIT_TOKEN`, so give a protected source its own variable in the configuration. AppSec Analyzer cannot read the OSCAL catalog yet.
 
 ## For development teams
 
@@ -122,7 +143,7 @@ appsec-cli --format json --output report.json security-score . --commit HEAD
 
 ### Tools that wrap an engine
 
-`security-score` and the `appsec-analyzer` commands pass everything after the tool name to their engine. `appsec-cli TOOL --help` shows the engine's options:
+`security-score`, the `appsec-analyzer` commands, and the `requirement-harvester` commands pass everything after the tool name to their engine. `appsec-cli TOOL --help` shows the engine's options:
 
 ```sh
 appsec-cli security-score . --skip-checks JS-RANDOM --timeout 90

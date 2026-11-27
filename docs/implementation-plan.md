@@ -48,6 +48,8 @@ Ein vorhandenes Bedrohungsmodell, Architekturunterlagen oder Anforderungen ergä
 
 Auch `appsec-analyzer` und `appsec-verifier` erhalten eigene Plugin-Pakete. Als erste Analyzer-Befehle sind `appsec-cli appsec-analyzer repo-profile` für einen Repository-Überblick und `appsec-cli appsec-analyzer export` für vorhandene Assessments vorgesehen. Für den Verifier ist `appsec-cli appsec-verifier export` zum Offline-Export eines fertigen `verification.yaml` vorgesehen. Die lokalen Projekte deklarieren bereits gleichnamige eigenständige Programme. Jeder Adapter veröffentlicht die von ihm unterstützten Operationen und deren Argumente einzeln.
 
+Der Requirement Harvester aus appsec-tools liest Anforderungsseiten in einen OSCAL-Katalog. Er ist ein Werkzeug des AppSec-Teams, nicht der Dev-Teams, und wird deshalb ausgeschaltet ausgeliefert (`enabled = false`). `appsec-cli requirement-harvester validate|run|login` reicht alles an die Engine durch; `GIT_TOKEN` erreicht sie nicht, und `login` läuft nur im Terminal.
+
 `appsec-cli` ist das Installationspaket für die Suite. Seine Release-Metadaten legen die mitgelieferten Plugin-Pakete und getesteten Versionen fest. Der Kern enthält ausschließlich den gemeinsamen Vertrag, die Discovery und Verwaltung. Neue Tools, auch aus separaten Repositories, registrieren sich über Entry Points. Das gilt ebenso für die ersten Tools und für spätere Ergänzungen.
 
 Standardmäßig sind die offiziellen Plugins des installierten Releases aktiv. Ein Tool mit `enabled = false` in seinem Verzeichnis liefert der Release mit, es bleibt aber aus, bis ein Team es unter `[plugins].additional` einschaltet. Teams können jedes davon in der Benutzer- oder vertrauenswürdigen CI-Konfiguration deaktivieren. Beispiel:
@@ -195,7 +197,7 @@ Für `--fail-on` gilt diese Reihenfolge: CLI-Option, `APPSEC_CLI_FAIL_ON`, Benut
 |---|---|
 | `pyproject.toml`, `setup.py`, `src/appsec_suite/` | Installationspaket und Version; der Build nimmt jedes Verzeichnis unter `tools/` auf |
 | `core/src/appsec_cli/` | Discovery, Konfiguration, Terminal, Ergebnisvertrag, Format der `tool.toml` und Prozessaufrufe |
-| `tools/` | Ein Verzeichnis pro Befehl: die vier Adapter des Beispiel-Setups und die Vorlage `_template` |
+| `tools/` | Ein Verzeichnis pro Befehl: die fünf Adapter des Beispiel-Setups und die Vorlage `_template` |
 | `skills/appsec-cli/` | Mitgelieferter Nutzungsskill |
 | `scripts/`, `tests/` | Build, Abhängigkeitsprüfung, Vertrags- und Installationstests |
 
