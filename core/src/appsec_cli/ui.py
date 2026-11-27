@@ -160,18 +160,19 @@ def example_lines(examples):
 
 
 def tool_list(rows, style):
+    """One line per tool; its commands are on the start page and in TOOL --help."""
+    names = [clean(row["name"]) for row in rows]
+    versions = [clean(row["version"]) for row in rows]
+    width = min(max(map(len, names), default=0), 32)
+    version_width = max(map(len, versions), default=0)
     lines = [style("Tools", "bold")]
-    for row in rows:
+    for row, name, version in zip(rows, names, versions):
         status = "" if row["status"] == "unchecked" else f" [{row['status']}]"
-        lines.append(
-            f"  {row['name']:<20} {clean(row['version']):<10} "
-            f"{clean(row['help'])}{style(status, 'muted')}"
-        )
-        for item in row.get("usage", []):
-            command = item["command"].removeprefix(row["name"]).strip()
-            summary = "" if item["summary"] == row["help"] else item["summary"]
-            if command:
-                lines.append(f"    {clean(command):<29} {clean(summary)}".rstrip())
+        text = f"  {name:<{width}}  {version:<{version_width}}  {clean(row['help'])}"
+        lines.append(text.rstrip() + style(status, "muted"))
+    if rows:
+        hint = "Run 'appsec-cli TOOL --help' for a tool's commands and examples."
+        lines += ["", style(hint, "muted")]
     return "\n".join(lines)
 
 

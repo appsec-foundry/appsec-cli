@@ -118,7 +118,7 @@ If a release does not work for you, go back to an earlier one with `pipx install
 
 ```sh
 appsec-cli                         # tools with an example call each
-appsec-cli tools list              # tools and their subcommands
+appsec-cli tools list              # installed tools, versions and status
 appsec-cli tools describe NAME     # arguments, output formats, data schema
 appsec-cli security-score --help   # options and examples of one command
 ```

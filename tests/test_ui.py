@@ -210,17 +210,36 @@ class ResultView(unittest.TestCase):
             ],
         )
 
-    def test_tool_list_shows_command_summaries(self):
-        row = {
-            "name": "scan",
-            "version": "1.0",
-            "help": "Scan things.",
-            "status": "unchecked",
-            "usage": [
-                {"command": "scan export", "summary": "Export.", "examples": []},
-                {"command": "scan list", "summary": "Scan things.", "examples": []},
+    def test_tool_list_shows_one_line_per_tool(self):
+        rows = [
+            {
+                "name": "requirement-harvester",
+                "version": "0.1.0",
+                "help": "Read requirements.",
+                "status": "unchecked",
+                "usage": [
+                    {
+                        "command": "requirement-harvester run",
+                        "summary": "Run.",
+                        "examples": [],
+                    }
+                ],
+            },
+            {
+                "name": "scan",
+                "version": "1.0.0a0",
+                "help": "Scan things.",
+                "status": "missing",
+                "usage": [],
+            },
+        ]
+        self.assertEqual(
+            tool_list(rows, PLAIN).splitlines(),
+            [
+                "Tools",
+                "  requirement-harvester  0.1.0    Read requirements.",
+                "  scan                   1.0.0a0  Scan things. [missing]",
+                "",
+                "Run 'appsec-cli TOOL --help' for a tool's commands and examples.",
             ],
-        }
-        lines = tool_list([row], PLAIN).splitlines()
-        self.assertIn("    export                        Export.", lines)
-        self.assertIn("    list", lines)
+        )

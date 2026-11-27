@@ -154,7 +154,7 @@ A `tool.toml` takes the same `examples` array.
 
 ## Plugin interface
 
-A plugin registers its handler in the entry-point group `appsec_cli.tools`. The entry point `team-inventory` of the package `appsec-plugin-team-inventory` becomes `appsec-cli team-inventory`. A group registers one entry point per operation, such as `reports.summary` and `reports.export`. This lets `tools list` show every command path without importing plugin code.
+A plugin registers its handler in the entry-point group `appsec_cli.tools`. The entry point `team-inventory` of the package `appsec-plugin-team-inventory` becomes `appsec-cli team-inventory`. A group registers one entry point per operation, such as `reports.summary` and `reports.export`. This lets the start page and `--format json tools list` show every command path without importing plugin code.
 
 ```python
 from appsec_cli import Result, command
