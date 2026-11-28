@@ -175,6 +175,35 @@ class Cli(unittest.TestCase):
             self.call("fixture", ".")
             self.assertIsNone(attached.call_args.kwargs["timeout"])
 
+    def test_a_terminal_only_command_refuses_json(self):
+        load = catalog.Tool.load
+
+        def terminal(tool, subcommand):
+            return replace(
+                load(tool, subcommand),
+                passthrough=lambda ctx: Passthrough(["engine"]),
+                terminal_only="Its report goes to --output.",
+            )
+
+        with (
+            patch.object(catalog.Tool, "load", terminal),
+            patch("appsec_cli.cli.attached", return_value=0),
+        ):
+            for chosen in ("json", "sarif"):
+                code, _, err = self.call("--format", chosen, "fixture", ".")
+                self.assertEqual(code, 2)
+                self.assertIn(
+                    f"fixture runs only in the terminal; run it without --format {chosen}.",
+                    err,
+                )
+                self.assertIn("Hint: Its report goes to --output.", err)
+            code, out, _ = self.call("fixture", "--help")
+            self.assertIn("Runs only in the terminal", out)
+            self.assertNotIn("before the tool name, appsec-cli returns", out)
+            _, out, _ = self.call("--format", "json", "tools", "describe", "fixture")
+            self.assertEqual(json.loads(out)["definitions"][0]["formats"], ["table"])
+            self.assertEqual(self.call("fixture", ".")[0], 0)
+
     def test_engine_errors_reach_the_user(self):
         code, out, _ = self.call("--format", "json", "fixture", ".", "--fail")
         self.assertEqual(code, 3)

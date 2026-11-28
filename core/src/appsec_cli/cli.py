@@ -126,6 +126,7 @@ class Forwarding(TyperCommand):
 
     reserved = frozenset()
     engine_help = None
+    terminal_only = None
 
     def parse_args(self, ctx, args):
         options = args[: args.index("--")] if "--" in args else args
@@ -156,10 +157,17 @@ class Forwarding(TyperCommand):
         # Engines offer their own output options, such as --json; agents and
         # scripts need to find the common result from the help they read.
         formatter.write_paragraph()
-        formatter.write_text(
-            "With --format json before the tool name, appsec-cli returns its common "
-            "result; output options of the engine print the engine's own format."
-        )
+        if self.terminal_only:
+            formatter.write_text(
+                "Runs only in the terminal, with the engine's output and exit code. "
+                + self.terminal_only
+            )
+        else:
+            formatter.write_text(
+                "With --format json before the tool name, appsec-cli returns its "
+                "common result; output options of the engine print the engine's own "
+                "format."
+            )
         text = engine_help_text(self.engine_help)
         if text:
             formatter.write_paragraph()
@@ -211,6 +219,7 @@ def as_command(spec, examples=(), table=False):
             spec.forward_except if through else spec.forward_except + spec.json_except
         )
         command.engine_help = spec.engine_help
+        command.terminal_only = spec.terminal_only
     command.format_epilog = lambda ctx, formatter: write_examples(formatter, examples)
     return command
 
@@ -227,6 +236,13 @@ def tool_version(tool, spec):
 def loaded(ctx, tool, subcommand):
     """The click command of one tool command, prepared for its run."""
     spec = tool.load(subcommand)
+    chosen = options(ctx)["format"]
+    if spec.terminal_only and chosen != "table":
+        name = " ".join(filter(None, (tool.name, subcommand)))
+        raise UsageError(
+            f"{name} runs only in the terminal; run it without --format {chosen}.",
+            spec.terminal_only,
+        )
     if options(ctx)["format"] == "sarif" and not spec.findings:
         raise UsageError(
             "This command reports data, not findings.", "Use --format json."
@@ -722,7 +738,9 @@ def describe(tool, table=False):
                         if p.name != "help"
                     ],
                     "data_schema": spec.data_adapter.json_schema(),
-                    "formats": ["table", "json"] + (["sarif"] if spec.findings else []),
+                    "formats": ["table"]
+                    if spec.terminal_only
+                    else ["table", "json"] + (["sarif"] if spec.findings else []),
                     **(
                         {"forwards_except": sorted(cmd.reserved)}
                         if spec.forward_except is not None

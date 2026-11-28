@@ -193,6 +193,8 @@ In `forward_except`, list the engine options appsec-cli must not pass on: output
 
 To let the engine answer in the terminal, set `passthrough=function`. With `--format table`, appsec-cli calls that function instead of the handler and runs the `appsec_cli.Passthrough(argv, env=...)` it returns on the caller's terminal. The engine's output and exit code are then the result, without header and outcome line, and appsec-cli refuses `--output`, `--fail-on`, `--min-severity`, `--limit`, and `APPSEC_CLI_FAIL_ON`. `--format json` and `sarif` still call the handler.
 
+A wrapper that only makes sense in the terminal, for example because its engine asks questions during a long run and writes its results to files, sets `terminal_only="..."` with a sentence that says where the results go. appsec-cli then refuses `--format json` and `sarif` with that sentence as the hint, says so in the help, and never calls the handler.
+
 With a passthrough, list the output formats the handler cannot read in `json_except=(...)` instead of `forward_except`, so the terminal still accepts them. Build `env` the same way the handler does, for example without secrets the engine must not send.
 
 An engine may run for 120 seconds. For longer runs, give `invoke` and `Passthrough` the same `timeout` in seconds. `Passthrough(..., timeout=None)` sets no limit, for an engine that bounds its runs itself, such as with a duration or cost limit the user can raise. Ctrl-C in the terminal reaches the engine as SIGINT; it has 30 seconds to finish, for example to write what it has found so far, and its exit code is the result.

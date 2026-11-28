@@ -81,6 +81,7 @@ class Command:
     engine_help: tuple[str, ...] | None = None
     passthrough: Callable[..., Passthrough] | None = None
     json_except: tuple[str, ...] = ()
+    terminal_only: str | None = None
 
     @property
     def data_adapter(self):
@@ -98,6 +99,7 @@ def command(
     engine_help: tuple[str, ...] | None = None,
     passthrough: Callable[..., Passthrough] | None = None,
     json_except: tuple[str, ...] = (),
+    terminal_only: str | None = None,
 ):
     """Declare one typed command. Its signature becomes the CLI and its help.
 
@@ -111,11 +113,18 @@ def command(
     handler, runs the Passthrough it returns and exits with the engine's exit
     code. json_except lists engine options refused only when appsec-cli reads
     the engine's JSON, with --format json or sarif.
+
+    terminal_only marks a wrapper that runs only in the terminal, such as one
+    whose engine asks questions or writes its results to files: appsec-cli
+    then refuses --format json and sarif and never calls the handler, whose
+    docstring is still the help. The text says where the results are instead.
     """
     if fail_on not in (None, "never", *SEVERITIES):
         raise ValueError("unknown severity threshold")
     if passthrough is not None and forward_except is None:
         raise ValueError("passthrough needs forward_except")
+    if terminal_only is not None and passthrough is None:
+        raise ValueError("terminal_only needs passthrough")
 
     def decorate(handler):
         return Command(
@@ -131,6 +140,7 @@ def command(
             engine_help=tuple(engine_help) if engine_help else None,
             passthrough=passthrough,
             json_except=tuple(json_except),
+            terminal_only=terminal_only,
         )
 
     return decorate
