@@ -194,7 +194,7 @@ def main():
             return json.loads(run(cli, "--format", "json", *args, codes=codes))
 
         # The suite build collects the examples; the CLI shows them unloaded.
-        listing = {t["name"]: t for t in result("tools", "list")["tools"]}
+        listing = {t["name"]: t for t in result("tools")["tools"]}
         first = listing["team-report"]["usage"][0]["examples"][0]["run"]
         assert first.startswith("appsec-cli team-report "), listing
         assert result("team-report", "sample")["data"] == {"characters": 6}
@@ -234,8 +234,7 @@ def main():
         assert wrapped["run"]["tool_version"] == "2.0.0", wrapped
         assert result("team-score", "sample")["status"] == "ok"
         statuses = {
-            t["name"]: t["status"]
-            for t in result("tools", "list", "--all", "--check")["tools"]
+            t["name"]: t["status"] for t in result("tools", "--all", "--check")["tools"]
         }
         assert statuses["team-lint"] == "disabled" and statuses["team-new"] == "ready"
         assert "team-report" not in statuses
@@ -263,9 +262,7 @@ def main():
             == 1
         )
         assert result("team-lint", "sample")["status"] == "ok"  # enabled again
-        assert all(
-            t["status"] == "ready" for t in result("tools", "list", "--check")["tools"]
-        )
+        assert all(t["status"] == "ready" for t in result("tools", "--check")["tools"])
 
         # The release in dist/: every one of its tools through the installed CLI.
         for wheel in args.release.glob("*.whl"):
@@ -277,15 +274,14 @@ def main():
         assert set(update["after"]["tools"]) == set(expected), update
         assert run(cli, "--version").splitlines()[0] == f"appsec-cli {suite}"
         statuses = {
-            t["name"]: t["status"]
-            for t in result("tools", "list", "--all", "--check")["tools"]
+            t["name"]: t["status"] for t in result("tools", "--all", "--check")["tools"]
         }
         assert statuses == {
             name: "ready" if on else "disabled" for name, on in expected.items()
         }, statuses
         optional = sorted(name for name, on in expected.items() if not on)
         cfg.write_text(f"[plugins]\nadditional = {json.dumps(optional)}\n")
-        tools = result("tools", "list", "--check")["tools"]
+        tools = result("tools", "--check")["tools"]
         assert {t["name"] for t in result()["tools"]} == set(expected)
         for tool in tools:
             assert tool["status"] == "ready", tool

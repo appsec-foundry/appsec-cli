@@ -122,7 +122,7 @@ def overview(rows, style, version, tagline=""):
         *columns(
             [
                 ("appsec-cli TOOL --help", "Arguments, options and examples of a tool"),
-                ("appsec-cli tools list", "Installed tools, versions and status"),
+                ("appsec-cli tools", "Installed tools, versions and status"),
                 ("appsec-cli --format json TOOL", "Result as JSON for scripts and CI"),
                 ("appsec-cli update", "Install the latest release"),
             ]
@@ -189,7 +189,7 @@ def tool_list(rows, style, checked=False, hidden=0):
         notes.append(style(hint, "muted"))
     if hidden:
         noun = "tool" if hidden == 1 else "tools"
-        text = f"{hidden} disabled {noun} not shown. See 'appsec-cli tools list --all'."
+        text = f"{hidden} disabled {noun} not shown. See 'appsec-cli tools --all'."
         notes.append(style(text, "muted"))
     if notes:
         lines += ["", *notes]

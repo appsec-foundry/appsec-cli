@@ -314,15 +314,21 @@ class Cli(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("Error: Tool 'fixture' is disabled.", err)
         # The suite also ships tools that stay off, such as requirement-harvester.
-        hint = (
-            r"(?m)^\d+ disabled tools? not shown\. See 'appsec-cli tools list --all'\.$"
-        )
-        _, out, _ = self.call("tools", "list")
+        hint = r"(?m)^\d+ disabled tools? not shown\. See 'appsec-cli tools --all'\.$"
+        _, out, _ = self.call("tools")
         self.assertNotIn("  fixture ", out)
         self.assertRegex(out, hint)
-        _, out, _ = self.call("tools", "list", "--all")
+        _, out, _ = self.call("tools", "--all")
         self.assertIn("[disabled]", out)
         self.assertNotIn("not shown", out)
+
+    def test_tools_list_still_answers_an_earlier_update(self):
+        """'update' of an earlier release reads the new versions with 'tools list'."""
+        _, listed, _ = self.call("--format", "json", "tools", "--all")
+        code, out, _ = self.call("--format", "json", "tools", "list", "--all")
+        self.assertEqual((code, out), (0, listed))
+        _, out, _ = self.call("tools", "--help")
+        self.assertNotRegex(out, r"(?m)^  list ")
 
     def test_start_page_loads_no_tool(self):
         script = (
@@ -498,7 +504,7 @@ class Cli(unittest.TestCase):
         self.assertIn("Error: This installation is not managed by pipx.", err)
 
     def test_tool_list_and_describe(self):
-        code, out, _ = self.call("--format", "json", "tools", "list")
+        code, out, _ = self.call("--format", "json", "tools")
         self.assertEqual(code, 0)
         tools = {t["name"]: t for t in json.loads(out)["tools"]}
         self.assertEqual(tools["fixture"]["version"], "0.1.0")
@@ -512,7 +518,7 @@ class Cli(unittest.TestCase):
         definition = json.loads(out)["definitions"][0]
         self.assertEqual(definition["parameters"], [])
         self.assertIn("--update", definition["forwards_except"])
-        code, _, err = self.call("--format", "sarif", "tools", "list")
+        code, _, err = self.call("--format", "sarif", "tools")
         self.assertEqual(code, 2)
         self.assertIn("Hint: Use --format json.", err)
 
@@ -547,7 +553,7 @@ class Cli(unittest.TestCase):
         fixture = {**plugin_fixture.USAGE["fixture"], "engine": "click"}
         named = {**plugin_fixture.USAGE, "fixture": fixture}
         with patch("appsec_cli.catalog.collected", return_value=named):
-            _, out, _ = self.call("--format", "json", "tools", "list")
+            _, out, _ = self.call("--format", "json", "tools")
             _, run, _ = self.call("--format", "json", "fixture", ".")
             _, versions, _ = self.call("--version")
         tools = {t["name"]: t for t in json.loads(out)["tools"]}
@@ -560,7 +566,7 @@ class Cli(unittest.TestCase):
         self.assertIn(["fixture", version("click")], lines)
         fixture["engine"] = "appsec-no-such-engine"
         with patch("appsec_cli.catalog.collected", return_value=named):
-            _, out, _ = self.call("--format", "json", "tools", "list")
+            _, out, _ = self.call("--format", "json", "tools")
             code, run, _ = self.call("fixture", ".")
         tools = {t["name"]: t for t in json.loads(out)["tools"]}
         self.assertEqual(tools["fixture"]["status"], "missing")

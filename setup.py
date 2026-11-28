@@ -91,7 +91,7 @@ for folder in sorted((ROOT / "tools").iterdir()):
 class BuildPy(build_py):
     """Ship the summaries, examples and engines of the adapters with the suite.
 
-    The CLI shows them on its start page, in the help and in tools list without
+    The CLI shows them on its start page, in the help and in 'tools' without
     importing a tool.
     """
 

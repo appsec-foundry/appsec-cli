@@ -41,18 +41,16 @@ def suggest(name, names):
 def unknown_tool(name, names):
     return UsageError(
         f"Unknown tool '{name}'.",
-        suggest(name, names) or "See 'appsec-cli tools list'.",
+        suggest(name, names) or "See 'appsec-cli tools'.",
     )
 
 
 def disabled_tool(name):
-    return UsageError(
-        f"Tool '{name}' is disabled.", "See 'appsec-cli tools list --all'."
-    )
+    return UsageError(f"Tool '{name}' is disabled.", "See 'appsec-cli tools --all'.")
 
 
 def listing(rows):
-    """The JSON of the start page and of tools list."""
+    """The JSON of the start page and of 'tools'."""
     return {"schema_version": 1, "version": version("appsec-cli"), "tools": rows}
 
 
@@ -553,14 +551,17 @@ def hand_over(ctx, name, call):
 
 
 @click.group("tools", invoke_without_command=True)
+@click.option("--all", "show_all", is_flag=True, help="Include disabled tools.")
+@click.option("--check", is_flag=True, help="Load every tool and report problems.")
 @click.pass_context
-def tools_group(ctx):
+def tools_group(ctx, show_all, check):
     """List and describe the installed tools."""
     if ctx.invoked_subcommand is None:
-        return ctx.invoke(tools_list)
+        return ctx.invoke(tools_list, show_all=show_all, check=check)
 
 
-@tools_group.command("list")
+# Hidden: 'update' of an earlier release reads the new versions with 'tools list --all'.
+@tools_group.command("list", hidden=True)
 @click.option("--all", "show_all", is_flag=True, help="Include disabled tools.")
 @click.option("--check", is_flag=True, help="Load every tool and report problems.")
 @click.pass_context
@@ -620,7 +621,6 @@ def installed():
             "--format",
             "json",
             "tools",
-            "list",
             "--all",
         ],
         # Outside the project: its .appsec-cli.toml sets only thresholds, and one

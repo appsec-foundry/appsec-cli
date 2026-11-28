@@ -60,11 +60,11 @@ Copy the template and give it the new name in four places. For a tool named `pol
 3. In `pyproject.toml`, set `name = "appsec-plugin-policy-check"`, a `description`, and the entry point `"policy-check" = "appsec_plugin_policy_check:run"`.
 4. In the code and in `tests/test_plugin.py`, replace `appsec_plugin_template` with `appsec_plugin_policy_check`, and the rule prefix `template/` with `policy-check/`.
 
-The build stops when the package name does not match the directory. `appsec-cli tools list --check` reports an entry point whose name does not match.
+The build stops when the package name does not match the directory. `appsec-cli tools --check` reports an entry point whose name does not match.
 
 The template has one command that returns data and findings. For a tool with several commands, register one entry point per command, such as `"reports.summary"` and `"reports.export"`; teams then run `appsec-cli reports summary`.
 
-To wrap an engine, add it to `dependencies` with a pinned version, for example `"appsec-security-score==0.3.3"`, and start its console script with `appsec_cli.external.invoke`: your fixed arguments first, then everything the user typed. Name the engine under `[tool.appsec-cli]` as `engine = "appsec-security-score"`, so that `tools list`, `--version` and each run report its version; the release build checks that it is a pinned dependency. Adapt the accepted exit codes and the mapping of the engine's output to your tool. [Wrap an engine](#wrap-an-engine) has the details, and [Engine sources](#engine-sources) explains where the release build gets the engine.
+To wrap an engine, add it to `dependencies` with a pinned version, for example `"appsec-security-score==0.3.3"`, and start its console script with `appsec_cli.external.invoke`: your fixed arguments first, then everything the user typed. Name the engine under `[tool.appsec-cli]` as `engine = "appsec-security-score"`, so that `tools`, `--version` and each run report its version; the release build checks that it is a pinned dependency. Adapt the accepted exit codes and the mapping of the engine's output to your tool. [Wrap an engine](#wrap-an-engine) has the details, and [Engine sources](#engine-sources) explains where the release build gets the engine.
 
 A tool written in another language can ship its executable as a resource in platform-specific wheels. The adapter finds the resource in its installed package and starts it with `appsec_cli.external.invoke`, which takes an argument list, uses no shell, and limits run time and output size. For offline runs and reproducible upgrades, put the engine or its client in the adapter's pinned dependencies.
 
@@ -110,7 +110,7 @@ path = "security-score"
 
 ## Tools that are off by default
 
-`enabled = false` in a `tool.toml`, or under `[tool.appsec-cli]` in an adapter's `pyproject.toml`, ships the tool with the release but leaves it off. `appsec-cli tools list --all` shows it as `disabled`. A team turns it on in its [user configuration](../README.md#configuration):
+`enabled = false` in a `tool.toml`, or under `[tool.appsec-cli]` in an adapter's `pyproject.toml`, ships the tool with the release but leaves it off. `appsec-cli tools --all` shows it as `disabled`. A team turns it on in its [user configuration](../README.md#configuration):
 
 ```toml
 [plugins]
@@ -156,7 +156,7 @@ A `tool.toml` takes the same `examples` array.
 
 ## Plugin interface
 
-A plugin registers its handler in the entry-point group `appsec_cli.tools`. The entry point `team-inventory` of the package `appsec-plugin-team-inventory` becomes `appsec-cli team-inventory`. A group registers one entry point per operation, such as `reports.summary` and `reports.export`. This lets the start page and `--format json tools list` show every command path without importing plugin code.
+A plugin registers its handler in the entry-point group `appsec_cli.tools`. The entry point `team-inventory` of the package `appsec-plugin-team-inventory` becomes `appsec-cli team-inventory`. A group registers one entry point per operation, such as `reports.summary` and `reports.export`. This lets the start page and `--format json tools` show every command path without importing plugin code.
 
 ```python
 from appsec_cli import Result, command
@@ -217,7 +217,7 @@ The [security-score adapter](../tools/security-score/src/appsec_plugin_security_
    ```
 
    Until the tool is part of a release, enable it under `[plugins].additional` in your [user configuration](../README.md#configuration).
-3. Check `appsec-cli tools list --check`, `appsec-cli --format json tools describe NAME`, one real call, and one error case.
+3. Check `appsec-cli tools --check`, `appsec-cli --format json tools describe NAME`, one real call, and one error case.
 4. `make release-check` builds the whole release with the new tool, runs the core tests and the tests in each `tools/NAME/tests`, installs the release with pipx, and checks every tool through the installed CLI.
 
 After you add or rename an entry point, reinstall the package; entry points are read from the installed metadata.
@@ -226,7 +226,7 @@ A team can also keep a plugin outside the suite: copy the template into its own 
 
 ## Versions and updates
 
-Every tool shows one version: its engine's, from the pin of a `tool.toml` or the `engine` an adapter names, otherwise the package version of the adapter. `appsec-cli tools list`, `appsec-cli --version` and each run show it. The JSON of `tools list` and of a run also carries the adapter version as `plugin_version`. pip only installs a package again when its version changes, so:
+Every tool shows one version: its engine's, from the pin of a `tool.toml` or the `engine` an adapter names, otherwise the package version of the adapter. `appsec-cli tools`, `appsec-cli --version` and each run show it. The JSON of `tools` and of a run also carries the adapter version as `plugin_version`. pip only installs a package again when its version changes, so:
 
 1. **Engine update:** release the new engine first. Change the pin in `tool.toml`, or raise the pin and the version in the adapter's `pyproject.toml`. Test how the adapter maps the new native output.
 2. **Adapter change:** raise the adapter version whenever anything in its directory changes. The same applies to the core in [core/](../core).

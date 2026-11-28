@@ -247,7 +247,7 @@ class ResultView(unittest.TestCase):
     def test_tool_list_names_the_hidden_tools(self):
         row = {"name": "a", "version": "1.0", "help": "Scan.", "status": "unchecked"}
         self.assertIn(
-            "1 disabled tool not shown. See 'appsec-cli tools list --all'.",
+            "1 disabled tool not shown. See 'appsec-cli tools --all'.",
             tool_list([row], PLAIN, hidden=1).splitlines(),
         )
         self.assertEqual(
@@ -255,7 +255,7 @@ class ResultView(unittest.TestCase):
             [
                 "Tools",
                 "",
-                "2 disabled tools not shown. See 'appsec-cli tools list --all'.",
+                "2 disabled tools not shown. See 'appsec-cli tools --all'.",
             ],
         )
 
