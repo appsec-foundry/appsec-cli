@@ -146,6 +146,34 @@ class Contracts(unittest.TestCase):
                 invoke([sys.executable, "-c", src], **kwargs)
             self.assertEqual(exc.exception.code, diagnostic)
 
+    def test_git_token_reaches_github_and_gitlab_only(self):
+        from appsec_cli.external import git_token_env
+
+        with patch.dict(os.environ, {"GIT_TOKEN": "test-token", "OTHER": "kept"}):
+            for args, kept in [
+                (["https://github.com/OWNER/REPO"], True),
+                (["--repo", "https://gitlab.com/GROUP/PROJECT.git"], True),
+                ([".", "--commit", "HEAD"], True),
+                (["--repo", "https://git.example.com/OWNER/REPO.git"], False),
+                (["http://github.com/OWNER/REPO"], False),
+                (["https://github.com.example.com/OWNER/REPO"], False),
+                (
+                    [
+                        "--repo=https://github.com/OWNER/REPO",
+                        "--requirements",
+                        "https://wiki.example.com/catalog.yaml",
+                    ],
+                    False,
+                ),
+            ]:
+                with self.subTest(args):
+                    env = git_token_env(args)
+                    if kept:
+                        self.assertIsNone(env)
+                    else:
+                        self.assertNotIn("GIT_TOKEN", env)
+                        self.assertEqual(env["OTHER"], "kept")
+
     def test_ctrl_c_gives_the_engine_time_to_finish(self):
         """attached() passes Ctrl-C on as SIGINT and waits before it stops the engine."""
         driver = (

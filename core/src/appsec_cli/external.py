@@ -9,12 +9,42 @@ import subprocess
 import sysconfig
 import time
 from pathlib import Path
+from urllib.parse import urlsplit
 
 import click
 
 from .sdk import ToolError
 
 USAGE = re.compile(r"([\w.-]+(?: [\w.-]+)*): error: (.+)")
+
+
+# GIT_TOKEN reaches these hosts only, and only over HTTPS.
+TOKEN_HOSTS = ("github.com", "gitlab.com")
+URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s,]+")
+
+
+def urls_in(args):
+    """The URLs in the engine arguments, such as the repository or --pr."""
+    return [url for arg in args for url in URL.findall(arg)]
+
+
+def token_allowed(urls):
+    """Whether every URL in the arguments is an HTTPS address on a token host."""
+    return all(
+        urlsplit(url).scheme == "https" and urlsplit(url).netloc in TOKEN_HOSTS
+        for url in urls
+    )
+
+
+def git_token_env(args):
+    """The engine environment for these arguments: None keeps GIT_TOKEN.
+
+    Otherwise it is the environment without GIT_TOKEN, since an engine would
+    send it to any other host that asks for it.
+    """
+    if token_allowed(urls_in(args)):
+        return None
+    return {k: v for k, v in os.environ.items() if k != "GIT_TOKEN"}
 
 
 def engine(name):

@@ -1,11 +1,15 @@
-import os
-import re
-from urllib.parse import urlsplit
-
 import typer
 from pydantic import BaseModel
 from appsec_cli import Diagnostic, Finding, Passthrough, Result, ToolError, command
-from appsec_cli.external import check_usage, engine, invoke, json_object, last_line
+from appsec_cli.external import (
+    check_usage,
+    engine,
+    git_token_env,
+    invoke,
+    json_object,
+    last_line,
+    urls_in,
+)
 
 
 class Area(BaseModel):
@@ -97,33 +101,6 @@ JSON_OWNED = (
     "--list-checks",
     "--verify-rules",
 )
-TOKEN_HOSTS = ("github.com", "gitlab.com")
-URL = re.compile(r"[A-Za-z][A-Za-z0-9+.-]*://[^\s,]+")
-
-
-def urls_in(args):
-    """The URLs in the engine arguments, such as the repository or --pr."""
-    return [url for arg in args for url in URL.findall(arg)]
-
-
-def token_allowed(urls):
-    """Whether every URL in the arguments is an HTTPS address on a token host."""
-    return all(
-        urlsplit(url).scheme == "https" and urlsplit(url).netloc in TOKEN_HOSTS
-        for url in urls
-    )
-
-
-def engine_env(urls):
-    """None keeps GIT_TOKEN; otherwise the environment without it.
-
-    The engine would send GIT_TOKEN to any other host that asks for it.
-    """
-    if token_allowed(urls):
-        return None
-    return {k: v for k, v in os.environ.items() if k != "GIT_TOKEN"}
-
-
 def target(scope):
     """What the engine assessed, as it reports it in its scope."""
     found = {"kind": "change" if scope.get("kind") == "change" else "repository"}
@@ -237,7 +214,7 @@ def review_note(count):
 def terminal(ctx: typer.Context) -> Passthrough:
     """In the terminal the engine prints the result and sets the exit code."""
     args = list(ctx.args)
-    return Passthrough([engine("security-score"), *args], env=engine_env(urls_in(args)))
+    return Passthrough([engine("security-score"), *args], env=git_token_env(args))
 
 
 @command(
@@ -260,7 +237,7 @@ def score(ctx: typer.Context) -> Result:
     stderr = bytearray()
     rc, raw = invoke(
         [engine("security-score"), "--json", *args],
-        env=engine_env(urls),
+        env=git_token_env(args),
         stderr=stderr,
     )
     check_usage(rc, raw, stderr)
