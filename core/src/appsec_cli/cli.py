@@ -261,7 +261,7 @@ class ToolGroup(click.Group):
         self.tool = tool
 
     def list_commands(self, ctx):
-        return sorted(self.tool.commands)
+        return self.tool.ordered()
 
     def format_commands(self, ctx, formatter):
         """The commands with the summaries of the tool list, without loading them."""
@@ -701,7 +701,7 @@ def describe(tool, table=False):
     if tool.status != "unchecked":
         raise ToolError("tool_" + tool.status, f"{tool.name} is {tool.status}.")
     definitions = []
-    for name in sorted(tool.commands):
+    for name in tool.ordered():
         spec = tool.load(name)
         cmd = as_command(spec, table=table)
         with click.Context(cmd) as ctx:

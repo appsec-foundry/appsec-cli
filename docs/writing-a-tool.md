@@ -150,6 +150,7 @@ A `tool.toml` takes the same `examples` array.
 - Start the description and each `summary` with a verb, such as "Score a repository …" or "Export a saved assessment …".
 - Say in the description or `summary` whether the tool calls a model.
 - Each command has at most 5 examples. `run`, `what`, and `summary` are one line of up to 100 characters.
+- The help, the start page, and `tools describe` list the commands in the order of their `[tool.appsec-cli.commands.NAME]` tables. Commands without a table follow in alphabetical order.
 - The release build stops on an invalid entry or a command the tool does not have.
 - A tool without entries appears with its name and description only. This also applies to plugins installed outside the suite with `pipx inject`.
 

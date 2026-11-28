@@ -98,7 +98,8 @@ class BuildPy(build_py):
     def run(self):
         super().run()
         target = Path(self.build_lib, "appsec_suite", "usage.json")
-        target.write_text(json.dumps(usage, indent=1, sort_keys=True), "utf-8")
+        # Without sort_keys: the CLI lists a tool's commands in this order.
+        target.write_text(json.dumps(usage, indent=1), "utf-8")
 
 
 setup(

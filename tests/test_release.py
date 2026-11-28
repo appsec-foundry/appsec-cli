@@ -1,8 +1,11 @@
 import importlib.util
+import json
 import subprocess
 import tempfile
+import tomllib
 import unittest
 import zipfile
+from importlib import resources
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -169,3 +172,17 @@ class WheelBuild(unittest.TestCase):
             (wheel,) = Path(tmp, "second").glob("*.whl")
             with zipfile.ZipFile(wheel) as archive:
                 self.assertNotIn("pkg/old.py", archive.namelist())
+
+    def test_the_suite_keeps_the_order_of_the_commands(self):
+        """The installed suite lists a tool's commands as its pyproject.toml does."""
+        shipped = json.loads(
+            resources.files("appsec_suite").joinpath("usage.json").read_text("utf-8")
+        )
+        for path in sorted((ROOT / "tools").glob("[!_]*/pyproject.toml")):
+            table = tomllib.loads(path.read_text())["tool"].get("appsec-cli", {})
+            if "commands" in table:
+                with self.subTest(path.parent.name):
+                    self.assertEqual(
+                        list(shipped[path.parent.name]["commands"]),
+                        list(table["commands"]),
+                    )

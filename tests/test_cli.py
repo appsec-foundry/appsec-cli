@@ -481,6 +481,33 @@ class Cli(unittest.TestCase):
         self.assertEqual(code, 2)
         self.assertIn("Hint: Use --format json.", err)
 
+    def test_commands_follow_the_manifest(self):
+        """The manifest orders a tool's commands; commands it leaves out follow."""
+        group = plugin_fixture.USAGE["fixture-group"]["commands"]
+        for commands in [
+            {"show": group["show"], "export": group["export"]},
+            {"show": group["show"]},
+        ]:
+            tables = {**plugin_fixture.USAGE, "fixture-group": {"commands": commands}}
+            with self.subTest(list(commands)), patch(
+                "appsec_cli.catalog.collected", return_value=tables
+            ):
+                _, start, _ = self.call()
+                _, out, _ = self.call("fixture-group", "--help")
+                _, described, _ = self.call(
+                    "--format", "json", "tools", "describe", "fixture-group"
+                )
+                listed = out.split("Commands:\n")[1]
+                self.assertLess(listed.index("show"), listed.index("export"))
+                self.assertLess(
+                    start.index("fixture-group show"),
+                    start.index("fixture-group export"),
+                )
+                self.assertEqual(
+                    [d["command"] for d in json.loads(described)["definitions"]],
+                    ["fixture-group show", "fixture-group export"],
+                )
+
     def test_a_named_engine_gives_the_version(self):
         fixture = {**plugin_fixture.USAGE["fixture"], "engine": "click"}
         named = {**plugin_fixture.USAGE, "fixture": fixture}

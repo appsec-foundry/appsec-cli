@@ -26,8 +26,13 @@ class Tool:
             for item in self.usage.get(command, {}).get("examples", [])
         ]
 
+    def ordered(self):
+        """The command names in the order of the manifest, then the others."""
+        listed = [c for c in self.usage if c in self.commands]
+        return listed + sorted(self.commands.keys() - set(listed))
+
     def description(self):
-        paths = {c: self.name + (" " + c if c else "") for c in sorted(self.commands)}
+        paths = {c: self.name + (" " + c if c else "") for c in self.ordered()}
         return dict(
             name=self.name,
             package=self.package,
