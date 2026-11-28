@@ -4,6 +4,7 @@ Run with the Python of an installed suite:
 python -m unittest discover -s tools/appsec-analyzer/tests
 """
 
+import os
 import subprocess
 import tempfile
 import unittest
@@ -35,6 +36,27 @@ class Analyzer(unittest.TestCase):
             "appsec-analyzer export: the following arguments are required",
             exc.exception.format_message(),
         )
+
+    def test_assess_runs_in_the_terminal_without_a_limit(self):
+        self.assertIsNotNone(commands.assess.terminal_only)
+        with (
+            patch.object(commands, "engine", return_value="engine"),
+            patch.dict(os.environ, {"GIT_TOKEN": "test-token"}),
+        ):
+            for repo, kept in [
+                ("https://github.com/OWNER/REPO.git", True),
+                (".", True),
+                ("https://git.example.com/OWNER/REPO.git", False),
+            ]:
+                with self.subTest(repo):
+                    args = ["--repo", repo, "--budget", "5"]
+                    call = commands.assess.passthrough(SimpleNamespace(args=args))
+                    self.assertEqual(call.argv, ["engine", "assess", *args])
+                    self.assertIsNone(call.timeout)
+                    if kept:
+                        self.assertIsNone(call.env)
+                    else:
+                        self.assertNotIn("GIT_TOKEN", call.env)
 
     def test_repo_profile(self):
         with tempfile.TemporaryDirectory() as tmp:

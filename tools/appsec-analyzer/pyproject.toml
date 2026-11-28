@@ -6,10 +6,11 @@ build-backend = "setuptools.build_meta"
 name = "appsec-plugin-appsec-analyzer"
 version = "0.1.0"
 requires-python = ">=3.10"
-description = "Inspect source repositories and export assessments."
+description = "Assess a repository's security with a model and export the results."
 dependencies = ["appsec-cli-core==0.1.0", "appsec-analyzer==0.1.0a0"]
 
 [project.entry-points."appsec_cli.tools"]
+"appsec-analyzer.assess" = "appsec_plugin_appsec_analyzer.commands:assess"
 "appsec-analyzer.repo-profile" = "appsec_plugin_appsec_analyzer.commands:profile"
 "appsec-analyzer.export" = "appsec_plugin_appsec_analyzer.commands:export"
 
@@ -19,17 +20,27 @@ where = ["src"]
 [tool.appsec-cli]
 engine = "appsec-analyzer"
 
+# In the order of the engine's own help: start here, quick checks, work with an
+# assessment.
+[tool.appsec-cli.commands.assess]
+summary = "Run a full security assessment (model calls, default limit USD 12, 20, or 40 by depth)."
+examples = [
+  { run = "appsec-analyzer assess --repo . --output ~/assessments/app", what = "Assess the current repository" },
+  { run = "appsec-analyzer assess --repo . --assessment-depth quick --budget 5", what = "Quicker and cheaper: quick depth with a USD 5 limit" },
+  { run = "appsec-analyzer assess --repo . --profile claude --non-interactive", what = "CI: fixed provider profile, no questions" },
+]
+
 [tool.appsec-cli.commands.repo-profile]
-summary = "Show repository size, languages and build manifests."
+summary = "Show size, languages, and build manifests of a repository."
 examples = [
   { run = "appsec-analyzer repo-profile .", what = "Inventory the current repository" },
 ]
 
 [tool.appsec-cli.commands.export]
-summary = "Export a saved assessment, for example as SARIF or HTML."
+summary = "Convert a finished assessment to SARIF, HTML, PDF, and other formats."
 examples = [
-  { run = "appsec-analyzer export --assessment ./assessment --output ./out --formats sarif", what = "Export a saved assessment as SARIF" },
-  { run = "appsec-analyzer export --assessment ./assessment --output ./out --formats html", what = "Export it as HTML (needs Pandoc)" },
+  { run = "appsec-analyzer export --assessment ~/assessments/app --output ~/exports/app --formats sarif", what = "Export an assessment as SARIF" },
+  { run = "appsec-analyzer export --assessment ~/assessments/app --output ~/exports/app-html --formats html", what = "Export it as HTML (needs Pandoc)" },
 ]
 
 [tool.appsec-cli.source]

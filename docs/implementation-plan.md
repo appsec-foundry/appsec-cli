@@ -46,7 +46,7 @@ Ein vorhandenes Bedrohungsmodell, Architekturunterlagen oder Anforderungen ergä
 
 ### Weitere Integrationen und Aktivierung
 
-Auch `appsec-analyzer` und `appsec-verifier` erhalten eigene Plugin-Pakete. Als erste Analyzer-Befehle sind `appsec-cli appsec-analyzer repo-profile` für einen Repository-Überblick und `appsec-cli appsec-analyzer export` für vorhandene Assessments vorgesehen. Für den Verifier ist `appsec-cli appsec-verifier export` zum Offline-Export eines fertigen `verification.yaml` vorgesehen. Die lokalen Projekte deklarieren bereits gleichnamige eigenständige Programme. Jeder Adapter veröffentlicht die von ihm unterstützten Operationen und deren Argumente einzeln.
+Auch `appsec-analyzer` und `appsec-verifier` erhalten eigene Plugin-Pakete. Der Analyzer bietet `appsec-cli appsec-analyzer assess` für ein vollständiges Assessment, `repo-profile` für einen Repository-Überblick und `export` für fertige Assessments, in der Reihenfolge seiner eigenen Hilfe. `assess` läuft nur im Terminal. Für den Verifier ist `appsec-cli appsec-verifier export` zum Offline-Export eines fertigen `verification.yaml` vorgesehen. Die lokalen Projekte deklarieren bereits gleichnamige eigenständige Programme. Jeder Adapter veröffentlicht die von ihm unterstützten Operationen und deren Argumente einzeln.
 
 Der Requirement Harvester aus appsec-tools liest Anforderungsseiten in einen OSCAL-Katalog. Er ist ein Werkzeug des AppSec-Teams, nicht der Dev-Teams, und wird deshalb ausgeschaltet ausgeliefert (`enabled = false`). `appsec-cli requirement-harvester validate|run|login` reicht alles an die Engine durch; `GIT_TOKEN` erreicht sie nicht, und `login` läuft nur im Terminal.
 
@@ -75,10 +75,12 @@ Usage: appsec-cli [OPTIONS] TOOL [COMMAND] [ARGS]
 Tools
   analyze-threats               Review threats in a repository, commit or PR with a model.
     appsec-cli analyze-threats --commit HEAD
-  appsec-analyzer export        Export a saved assessment, for example as SARIF or HTML.
-    appsec-cli appsec-analyzer export --assessment ./assessment --output ./out
-  appsec-analyzer repo-profile  Show repository size, languages and build manifests.
+  appsec-analyzer assess        Run a full security assessment (model calls, default limit USD 12, 20, or 40 by depth).
+    appsec-cli appsec-analyzer assess --repo . --output ~/assessments/app
+  appsec-analyzer repo-profile  Show size, languages, and build manifests of a repository.
     appsec-cli appsec-analyzer repo-profile .
+  appsec-analyzer export        Convert a finished assessment to SARIF, HTML, PDF, and other formats.
+    appsec-cli appsec-analyzer export --assessment ~/assessments/app --output ~/exports/app --formats sarif
   appsec-verifier export        Export results from completed verification reports.
   security-score                Score a repository or assess a change; no model calls.
     appsec-cli security-score .

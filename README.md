@@ -66,8 +66,9 @@ The example tools come from appsec-foundry. Each one is a Python adapter in [too
 | --- | --- | --- | --- |
 | `security-score [REPO]` | Scores a local repository or a GitHub or GitLab repository by its HTTPS URL. With `--commit SHA` or `--staged`, it rates how security-relevant a change is. | [Security Score](https://github.com/appsec-foundry/appsec-tools/tree/main/security-score) 0.3.4 | No |
 | `analyze-threats [REPO]` | Threat review of `HEAD`, a commit (`--commit SHA`), the changes since a base commit (`--base SHA`), or a GitHub pull request (`--pr URL`), with cited evidence. | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | Yes |
+| `appsec-analyzer assess --repo REPO` | Full security assessment of a local repository or a Git URL, within a cost limit. The reports go to `--output`, SARIF and HTML on request (`--sarif`, `--html`). Runs only in the terminal. | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | Yes |
 | `appsec-analyzer repo-profile [REPO]` | Size, languages, and build manifests of a repository. | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | No |
-| `appsec-analyzer export --assessment DIR --output DIR` | Converts a saved Analyzer assessment, for example to SARIF (`--formats sarif`) or HTML (`--formats html`, needs Pandoc). | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | No |
+| `appsec-analyzer export --assessment DIR --output NEW_DIR` | Converts a finished assessment, for example to SARIF (`--formats sarif`), HTML (`--formats html`, needs Pandoc), or PDF. `NEW_DIR` lies outside Git checkouts. | [AppSec Analyzer](https://github.com/appsec-foundry/appsec-analyzer) 0.1.0a0 | No |
 | `appsec-verifier export VERIFICATION_YAML` | Checks a finished AppSec Verifier report and exports its findings with verdict and confidence. | Report schema of [AppSec Verifier](https://github.com/appsec-foundry/appsec-verifier) | No |
 | `requirement-harvester run --config FILE` | Reads requirements from web pages and wikis into an OSCAL catalog, as a configuration file sets. Off by default; see [Requirement Harvester](#requirement-harvester). | [Requirement Harvester](https://github.com/appsec-foundry/appsec-tools/tree/main/requirement-harvester) 0.1.0 | No |
 
@@ -75,10 +76,11 @@ The example tools come from appsec-foundry. Each one is a Python adapter in [too
 appsec-cli security-score .
 appsec-cli security-score https://github.com/OWNER/REPO
 appsec-cli analyze-threats --pr https://github.com/OWNER/REPO/pull/42
+appsec-cli appsec-analyzer assess --repo . --output ~/assessments/app
 appsec-cli appsec-analyzer export --assessment ~/assessments/app --output ~/exports/app --formats sarif
 ```
 
-For a private repository on github.com or gitlab.com, `security-score` uses a read-only token from `GIT_TOKEN`. Other hosts don't receive it.
+For a private repository on github.com or gitlab.com, `security-score` and `appsec-analyzer assess` use a read-only token from `GIT_TOKEN`. Other hosts don't receive it.
 
 ### Requirement Harvester
 
@@ -149,7 +151,7 @@ appsec-cli --format json --output report.json security-score . --commit HEAD
 appsec-cli security-score . --skip-checks JS-RANDOM --timeout 90
 ```
 
-In the terminal, these commands show the engine's own output and end with its exit code. With `--format json` or `sarif`, they return the [common result](docs/result-schema.md); only then do `--output`, `--fail-on`, `--min-severity`, and `--limit` apply. appsec-cli refuses a few engine options, such as those that would replace the engine version of the release.
+In the terminal, these commands show the engine's own output and end with its exit code. With `--format json` or `sarif`, they return the [common result](docs/result-schema.md); only then do `--output`, `--fail-on`, `--min-severity`, and `--limit` apply. `appsec-analyzer assess` and `requirement-harvester login` run only in the terminal; in CI, `assess` takes the engine's own options, such as `--non-interactive` and `--fail-on`. appsec-cli refuses a few engine options, such as those that would replace the engine version of the release.
 
 ### Exit codes
 
