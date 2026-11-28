@@ -155,7 +155,11 @@ class Cli(unittest.TestCase):
 
     def test_terminal_wrapper_sets_the_time_limit(self):
         load = catalog.Tool.load
-        calls = [Passthrough(["engine"]), Passthrough(["engine"], timeout=900)]
+        calls = [
+            Passthrough(["engine"]),
+            Passthrough(["engine"], timeout=900),
+            Passthrough(["engine"], timeout=None),
+        ]
 
         def terminal(tool, subcommand):
             return replace(load(tool, subcommand), passthrough=lambda ctx: calls.pop(0))
@@ -168,6 +172,8 @@ class Cli(unittest.TestCase):
             self.assertEqual(attached.call_args.kwargs["timeout"], 120)
             self.call("fixture", ".")
             self.assertEqual(attached.call_args.kwargs["timeout"], 900)
+            self.call("fixture", ".")
+            self.assertIsNone(attached.call_args.kwargs["timeout"])
 
     def test_engine_errors_reach_the_user(self):
         code, out, _ = self.call("--format", "json", "fixture", ".", "--fail")

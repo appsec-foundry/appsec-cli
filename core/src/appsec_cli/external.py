@@ -94,11 +94,16 @@ def invoke(
         proc.stderr.close()
 
 
-def attached(argv, *, env=None, timeout=120):
+def attached(argv, *, env=None, timeout=120, grace=30):
     """Run argv without a shell on the caller's stdin, stdout and stderr.
 
-    Returns its exit code. On a timeout or an interruption the whole process
-    group stops, as with invoke().
+    Returns its exit code; timeout None waits without a limit. On a timeout the
+    whole process group stops, as with invoke().
+
+    The engine runs in its own session, so Ctrl-C reaches only appsec-cli. The
+    engine then gets SIGINT and up to grace seconds to end by itself, for
+    example after writing what it found so far, and its exit code is returned.
+    After that it stops, with 130; a second Ctrl-C stops it at once.
     """
     try:
         proc = subprocess.Popen(argv, env=env, start_new_session=True)
@@ -107,7 +112,17 @@ def attached(argv, *, env=None, timeout=120):
             "binary_not_found", "The selected executable is unavailable."
         ) from None
     try:
-        return proc.wait(timeout=timeout)
+        try:
+            return proc.wait(timeout=timeout)
+        except KeyboardInterrupt:
+            try:
+                os.killpg(proc.pid, signal.SIGINT)
+            except ProcessLookupError:
+                pass
+            try:
+                return proc.wait(timeout=grace)
+            except subprocess.TimeoutExpired:
+                return 130
     except subprocess.TimeoutExpired:
         raise ToolError("timeout", "The command exceeded its time limit.") from None
     finally:

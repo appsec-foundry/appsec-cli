@@ -195,7 +195,7 @@ To let the engine answer in the terminal, set `passthrough=function`. With `--fo
 
 With a passthrough, list the output formats the handler cannot read in `json_except=(...)` instead of `forward_except`, so the terminal still accepts them. Build `env` the same way the handler does, for example without secrets the engine must not send.
 
-An engine may run for 120 seconds. For longer runs, give `invoke` and `Passthrough` the same `timeout` in seconds.
+An engine may run for 120 seconds. For longer runs, give `invoke` and `Passthrough` the same `timeout` in seconds. `Passthrough(..., timeout=None)` sets no limit, for an engine that bounds its runs itself, such as with a duration or cost limit the user can raise. Ctrl-C in the terminal reaches the engine as SIGINT; it has 30 seconds to finish, for example to write what it has found so far, and its exit code is the result.
 
 The [security-score adapter](../tools/security-score/src/appsec_plugin_security_score/commands.py) shows all of this, including partial results.
 

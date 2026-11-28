@@ -1,8 +1,11 @@
 """Run against an installed suite with python -m unittest discover -s tests."""
 
 import os
+import signal
+import subprocess
 import sys
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -10,7 +13,7 @@ from unittest.mock import patch
 import jsonschema
 from appsec_cli import Finding, Result, ToolError, command
 from appsec_cli.config import Settings, settings, shown
-from appsec_cli.external import invoke
+from appsec_cli.external import attached, invoke
 from appsec_cli.output import finalize, sarif
 from appsec_cli.sdk import Envelope
 
@@ -142,6 +145,48 @@ class Contracts(unittest.TestCase):
             with self.assertRaises(ToolError) as exc:
                 invoke([sys.executable, "-c", src], **kwargs)
             self.assertEqual(exc.exception.code, diagnostic)
+
+    def test_ctrl_c_gives_the_engine_time_to_finish(self):
+        """attached() passes Ctrl-C on as SIGINT and waits before it stops the engine."""
+        driver = (
+            "import sys\n"
+            "from appsec_cli.external import attached\n"
+            "print(attached(sys.argv[2:], timeout=None, grace=float(sys.argv[1])))\n"
+        )
+        engines = {
+            # Writes what it has on Ctrl-C, then ends as Python does.
+            "finishes": "import pathlib,sys,time\n"
+            "d=pathlib.Path(sys.argv[1])\n"
+            "try:\n (d/'ready').write_text(str(__import__('os').getpid())); time.sleep(30)\n"
+            "except KeyboardInterrupt:\n (d/'saved').touch(); sys.exit(130)\n",
+            # Ignores SIGINT and has to be stopped.
+            "hangs": "import os,pathlib,signal,sys,time\n"
+            "signal.signal(signal.SIGINT, signal.SIG_IGN)\n"
+            "d=pathlib.Path(sys.argv[1])\n"
+            "(d/'ready').write_text(str(os.getpid())); time.sleep(30)\n",
+        }
+        for name, source in engines.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp:
+                run = subprocess.Popen(
+                    [sys.executable, "-c", driver, "0.5", sys.executable, "-c", source, tmp],
+                    stdout=subprocess.PIPE,
+                    text=True,
+                )
+                ready = Path(tmp, "ready")
+                for _ in range(200):
+                    if ready.is_file() and ready.read_text():
+                        break
+                    time.sleep(0.05)
+                pid = int(ready.read_text())
+                run.send_signal(signal.SIGINT)
+                out, _ = run.communicate(timeout=20)
+                self.assertEqual(out.strip(), "130")
+                self.assertEqual(Path(tmp, "saved").is_file(), name == "finishes")
+                with self.assertRaises(ProcessLookupError):
+                    os.kill(pid, 0)
+        self.assertEqual(
+            attached([sys.executable, "-c", "raise SystemExit(4)"], timeout=None), 4
+        )
 
     def test_external_engine_version_and_output(self):
         from appsec_cli.external import ExternalTool

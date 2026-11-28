@@ -52,12 +52,14 @@ class Envelope(Result):
 class Passthrough:
     """An engine call whose output and exit code reach the caller unchanged.
 
-    timeout is how long the engine may run, in seconds.
+    timeout is how long the engine may run, in seconds. None sets no limit of
+    appsec-cli, for an engine that bounds its own runs, such as by a duration
+    or cost limit the user can change.
     """
 
     argv: list[str]
     env: dict[str, str] | None = None
-    timeout: int = 120
+    timeout: int | None = 120
 
 
 class ToolError(Exception):
